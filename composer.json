@@ -5,7 +5,7 @@
 	"keywords": [
 		"library"
 	],
-	"license": "BSD-3",
+	"license": "MIT",
 	"require": {
 		"php": "^8.1",
 		"ext-json": "*",
