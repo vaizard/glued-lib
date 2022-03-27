@@ -205,10 +205,11 @@ class Utils
      * @return array [description]
      */
     public function get_routes_tree($current_route = null): array {
+
         $routes = $this->get_routes_map();
         foreach ($routes as $k => $v) {
             // 3rd tier nodes (route within a microservice)
-            $path = explode( '.', $k);
+            $path = explode( '_', $k);
             $item = $v;
             if ($k === $current_route) { 
                 $item['current'] = true; 
@@ -220,8 +221,8 @@ class Utils
             $r[$path[0]]['children'][$path[1]]['children'][]['node'] = $item;
             // 2nd tier nodes (routegroup of a microservice: i.e. core, skeleton ...)
             $item = null;
-            $item['label'] = $this->settings['routes'][$path[0].'.'.$path[1]]['label'] ?? null;
-            $item['icon'] = $this->settings['routes'][$path[0].'.'.$path[1]]['icon'] ?? null;
+            $item['label'] = $this->settings['routes'][$path[0].'_'.$path[1]]['label'] ?? null;
+            $item['icon'] = $this->settings['routes'][$path[0].'_'.$path[1]]['icon'] ?? null;
             $item['type'] = 'routegroup';
             $r[$path[0]]['children'][$path[1]]['node'] = $item;
             // 1st tier nodes (routegroup class: app, api)
