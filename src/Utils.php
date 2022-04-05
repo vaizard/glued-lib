@@ -1,5 +1,7 @@
 <?php
+declare(strict_types=1);
 namespace Glued\Lib;
+
 use Exception;
 use Slim\Routing\RouteContext;
 

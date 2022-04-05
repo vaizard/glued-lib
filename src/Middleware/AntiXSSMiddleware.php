@@ -1,10 +1,9 @@
 <?php
-
+declare(strict_types=1);
 namespace Glued\Lib\Middleware;
 
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Server\RequestHandlerInterface as Handler;
-
 
 /**
  * Sanitizes user data (request body) using voku/anti-xss, which we use here
