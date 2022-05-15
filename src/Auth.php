@@ -6,7 +6,10 @@ namespace Glued\Lib;
 
 use Glued\Lib\Exceptions\AuthTokenException;
 use Glued\Lib\Exceptions\AuthOidcException;
+use Glued\Lib\Exceptions\AuthJwtException;
 use Jose\Component\Core\JWK;
+use Jose\Easy\Load;
+use Jose\Component\Core\JWKSet;
 
 
 /**
@@ -146,6 +149,23 @@ class Auth
         //$this->log(LogLevel::WARNING, "Token not found");
         throw new AuthTokenException("Token not found.");
     }
+
+    public function decode_token($accesstoken, $certs) {
+        try {
+            $oidc = $this->settings['oidc'];
+            $jwt = Load::jws($accesstoken)   // Load and verify the token in $accesstoken
+                ->algs(['RS256', 'RS512'])   // Check if allowed The algorithms are used
+                ->exp()                      // Check if "exp" claim is present
+                ->iat(1000)                  // Check if "iat" claim is present and within 1000ms leeway
+                ->nbf(1000)                  // Check if "nbf" claim is present and within 1000ms leeway
+                ->iss($oidc['uri']['realm']) // Check if "nbf" claim is present and matches the realm
+                ->keyset(new JWKSet($certs)) // Key used to verify the signature
+                ->run();                     // Do it.
+            $decoded['claims'] = $jwt->claims->all() ?? [];
+            $decoded['header'] = $jwt->header->all() ?? [];
+        } catch (\Exception $e) { throw new AuthJwtException($e->getMessage(), $e->getCode(), $e); }
+        return $decoded;
+    }
    
     //////////////////////////////////////////////////////////////////////////
     // OTHER AUTH RELATED METHODS ////////////////////////////////////////////
@@ -160,10 +180,16 @@ class Auth
         }
     }
 
-    public function user_list() :? array {
-        // replace with attribute filtering
-        // $this->db->where("c_uid", $user_id); 
-        return $this->db->get("t_core_users");
+    // call with users() to get them all
+    // users(["c_uid", $uuid]) to get a specific users
+    // users(["c_column1", $something], ["c_column2", $somethingelse]) to filter
+    public function users(...$params) :? array {
+        foreach ($params as $p) {
+            $this->db->where(p[0], p[1]); 
+        }
+        return $this->db->get("t_core_users", null, [ 
+            "BIN_TO_UUID(`c_uuid`) AS `c_uuid`", "c_profile", "c_account", "c_attr", "c_locale", "c_nick", "c_ts_created", "c_ts_modified", "c_stor_name", "c_email"
+        ]);
     }
 
 
