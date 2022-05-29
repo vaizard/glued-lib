@@ -164,7 +164,7 @@ class Utils
      * - get slim routes from the route collector and
      * - append the pattern and implemented methods
      * - append the route name
-     * - append the label and icon (from configuration)
+     * - append the label (from configuration)
      * and return all this as an indexed array.
      * @return array [description]
      */
@@ -180,7 +180,6 @@ class Utils
                     $data[$i]['url'] = $this->routecollector->getRouteParser()->urlFor($data[$i]['name']);
                 } catch (\InvalidArgumentException $e) { $data[$i]['argsrequired'] = true; }
                 $data[$i]['label'] = $this->settings['routes'][$data[$i]['name']]['label'] ?? null;
-                $data[$i]['icon'] = $this->settings['routes'][$data[$i]['name']]['icon'] ?? null;
             } 
         }
         ksort($data, SORT_NATURAL);
@@ -224,12 +223,10 @@ class Utils
             // 2nd tier nodes (routegroup of a microservice: i.e. core, skeleton ...)
             $item = null;
             $item['label'] = $this->settings['routes'][$path[0].'_'.$path[1]]['label'] ?? null;
-            $item['icon'] = $this->settings['routes'][$path[0].'_'.$path[1]]['icon'] ?? null;
             $item['type'] = 'routegroup';
             $r[$path[0]]['children'][$path[1]]['node'] = $item;
             // 1st tier nodes (routegroup class: app, api)
             $item['label'] = $this->settings['routes'][$path[0]]['label'] ?? null;
-            $item['icon'] = $this->settings['routes'][$path[0]]['icon'] ?? null;
             $item['type'] = 'routegroup';
             $r[$path[0]]['node'] = $item;
         }
