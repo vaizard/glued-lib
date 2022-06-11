@@ -39,7 +39,7 @@ class Crypto
      * @param $key string base64 encoded encryption key
      * @return string decrypted $encoded
      */
-    public function decrypt($encoded: string, $key: string): string {
+    public function decrypt(string $encoded, string $key): string {
         $decoded = sodium_base642bin($encoded, $this->base64_variant);
         $nonce = mb_substr($decoded, 0, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES, '8bit');
         $ciphertext = mb_substr($decoded, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES, null, '8bit');

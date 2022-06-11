@@ -1,0 +1,59 @@
+{
+  "name": "ergebnis/json-normalizer",
+  "description": "Provides generic and vendor-specific normalizers for normalizing JSON documents.",
+  "license": "MIT",
+  "type": "library",
+  "keywords": [
+    "json",
+    "normalizer"
+  ],
+  "authors": [
+    {
+      "name": "Andreas Möller",
+      "email": "am@localheinz.com"
+    }
+  ],
+  "homepage": "https://github.com/ergebnis/json-normalizer",
+  "support": {
+    "issues": "https://github.com/ergebnis/json-normalizer/issues",
+    "source": "https://github.com/ergebnis/json-normalizer"
+  },
+  "require": {
+    "php": "^7.4 || ^8.0",
+    "ext-json": "*",
+    "ergebnis/json-printer": "^3.2.0",
+    "ergebnis/json-schema-validator": "^2.0.0",
+    "justinrainbow/json-schema": "^5.2.11"
+  },
+  "require-dev": {
+    "ergebnis/data-provider": "^1.0.0",
+    "ergebnis/license": "^1.2.0",
+    "ergebnis/php-cs-fixer-config": "^3.4.0",
+    "fakerphp/faker": "^1.17.0",
+    "infection/infection": "~0.25.5",
+    "phpunit/phpunit": "^9.5.11",
+    "psalm/plugin-phpunit": "~0.16.1",
+    "vimeo/psalm": "^4.17.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Ergebnis\\Json\\Normalizer\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Ergebnis\\Json\\Normalizer\\Test\\": "test/"
+    }
+  },
+  "config": {
+    "allow-plugins": {
+      "composer/package-versions-deprecated": true,
+      "infection/extension-installer": true
+    },
+    "platform": {
+      "php": "7.4.26"
+    },
+    "preferred-install": "dist",
+    "sort-packages": true
+  }
+}

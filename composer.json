@@ -11,7 +11,7 @@
 		"ext-json": "*",
 		"ext-bcmath": "*",
 		"slim/slim": "^4",
-		"middlewares/csp": "^3.0",
+		"middlewares/csp": "^3",
 		"middlewares/trailing-slash": "^2",
 		"monolog/monolog": "^2",
 		"selective/transformer": "^1",
