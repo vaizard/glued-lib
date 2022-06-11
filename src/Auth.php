@@ -192,6 +192,50 @@ class Auth
         ]);
     }
 
+    /**
+     * @param array $jwt_claims
+     * @return bool
+     */
+    public function adduser(array $jwt_claims) : bool {
+
+        // check if user exists
+        try {
+            $this->db->where('c_uuid = uuid_to_bin(?, true)', [ $jwt_claims['sub'] ?? '' ]);
+            $user = $this->db->getOne('t_core_users', null);
+            if ($user) die('user already exists');
+        } catch (\Exception $e) { throw new DbException($e->getMessage(), $e->getCode(), $e); }
+
+        
+        $account['locale'] = $this->utils->default_locale($jwt_claims['locale'] ?? 'en') ?? 'en_US';
+
+        try {
+            $profile = $this->transform
+                ->map('name.0.fn',          'name')
+                ->map('name.0.given',       'given_name')
+                ->map('name.0.family',      'family_name')
+                ->map('name.0.@.src',       'iss')
+                ->map('email.0.uri',        'email')
+                ->map('email.0.@.src',      'iss')
+                ->set('email.0.@.pref',     1)
+                ->set('service.0.kind',     'oidc')
+                ->map('service.0.uri',      'iss')
+                ->map('service.0.handle',   'preferred_username')
+                ->map('website.0.uri',      'website')
+                ->toArray($jwt_claims) ?? [];
+        } catch (\Exception $e) { throw new TransformException($e->getMessage(), $e->getCode(), $e); }
+
+            // log do shadow profile log table
+            // TODO shadow profile
+            if ($jwt_claims['sub'])  {
+                $data["c_uuid"]     = $this->db->func('uuid_to_bin(?, true)', [$jwt_claims['sub']]);
+                $data["c_profile"]  = json_encode($profile);
+                $data["c_account"]  = json_encode($account);
+                $data["c_email"]  = $jwt_claims['emaild'] ?? 'NULL';
+                $data["c_nick"]  = $jwt_claims['preferred_username'] ?? 'NULL';
+                $this->db->insert('t_core_users', $data);
+            } 
+        }
+
 
 
 
