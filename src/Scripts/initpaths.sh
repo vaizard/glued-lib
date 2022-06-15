@@ -6,4 +6,7 @@ source "$DIR/loadenv.sh"
 mkdir -p "${datapath}/$(basename `pwd`)/backups";
 mkdir -p "${datapath}/$(basename `pwd`)/config";
 mkdir -p "${datapath}/$(basename `pwd`)/cache";
+mkdir -p "${datapath}/$(basename `pwd`)/data";
+chown www-data:www-data "${datapath}/$(basename `pwd`)/data"
+chown www-data:www-data "${datapath}/$(basename `pwd`)/cache"
 echo "[PASS] datapaths exist"
