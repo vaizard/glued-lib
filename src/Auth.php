@@ -7,6 +7,7 @@ namespace Glued\Lib;
 use Glued\Lib\Exceptions\AuthTokenException;
 use Glued\Lib\Exceptions\AuthOidcException;
 use Glued\Lib\Exceptions\AuthJwtException;
+use Glued\Lib\Exceptions\DbException;
 use Jose\Component\Core\JWK;
 use Jose\Easy\Load;
 use Jose\Component\Core\JWKSet;
@@ -90,7 +91,7 @@ class Auth
         $oidc = $this->settings['oidc'];
         $hit = $this->fscache->has('glued_oidc_uri_discovery');
         if ($hit) {
-            $conf = (array) json_decode($this->fscache->get('glued_oidc_uri_discovery') ?? []);
+            $conf = (array) json_decode($this->fscache->get('glued_oidc_uri_discovery')) ?? [];
             if ($conf['issuer'] != $oidc['uri']['realm']) $hit = false;
         }
 
@@ -104,13 +105,13 @@ class Auth
 
         $hit = $this->fscache->has('glued_oidc_uri_jwks');
         if ($hit) {
-            $conf = (array) json_decode($this->fscache->get('glued_oidc_uri_jwks') ?? []);
+            $conf = (array) json_decode($this->fscache->get('glued_oidc_uri_jwks')) ?? [];
             if (!isset($jwks['keys'])) $hit = false;
         }
 
         if (!$hit) {
             $json = (string) $this->utils->fetch_uri($oidc['uri']['jwks']) ?? '';
-            $jwks = (array) json_decode($json);
+            $jwks = (array) json_decode($json) ?? [];
             if ($conf == []) throw new AuthOidcException('Identity server connection failure, please reload this page.');
             if (!isset($jwks['keys'])) throw new AuthOidcException('Identity server certificate mismatch.');
             $this->fscache->set('glued_oidc_uri_jwks', $json, 300); // TODO make the 300s value configurable
@@ -185,7 +186,7 @@ class Auth
     // users(["c_column1", $something], ["c_column2", $somethingelse]) to filter
     public function users(...$params) :? array {
         foreach ($params as $p) {
-            $this->db->where(p[0], p[1]); 
+            $this->db->where($p[0], $p[1]);
         }
         return $this->db->get("t_core_users", null, [ 
             "BIN_TO_UUID(`c_uuid`) AS `c_uuid`", "c_profile", "c_account", "c_attr", "c_locale", "c_nick", "c_ts_created", "c_ts_modified", "c_stor_name", "c_email"

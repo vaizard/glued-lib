@@ -4,6 +4,7 @@ namespace Glued\Lib;
 
 use Exception;
 use Slim\Routing\RouteContext;
+use Glued\Lib\Exceptions\DbException;
 
 class Utils
 {
@@ -65,7 +66,7 @@ class Utils
      * @param string $replace     Replace string
      * @param string $subject     Source string
      * @param int $occurrence     N-th occurrence
-     * @return type               Replaced string
+     * @return string             Replaced string
      */
     public function str_replace_n($search, $replace, $subject, $occurrence): string {
         $search = preg_quote($search);
@@ -202,41 +203,6 @@ class Utils
         return $res;
     }
 
-    /**
-     * get_routes_tree() returns routes as the leafs of a 3 dimensional array.
-     * 2nd dimension nodes group routes of one microservice.
-     * 1st dimension nodes group routes according to usage (interface, api, backend)
-     * @return array [description]
-     */
-    public function get_routes_tree($current_route = null): array {
-
-        $routes = $this->get_routes_map();
-        foreach ($routes as $k => $v) {
-            // 3rd tier nodes (route within a microservice)
-            $path = explode( '_', $k);
-            $item = $v;
-            if ($k === $current_route) { 
-                $item['current'] = true; 
-                $append[$path[0]]['children'][$path[1]]['node']['current'] = true;
-                $append[$path[0]]['node']['current'] = true;
-            }
-            $item['name'] = $k;
-            $item['type'] = 'route';
-            $r[$path[0]]['children'][$path[1]]['children'][]['node'] = $item;
-            // 2nd tier nodes (routegroup of a microservice: i.e. core, skeleton ...)
-            $item = null;
-            $item['label'] = $this->settings['routes'][$path[0].'_'.$path[1]]['label'] ?? null;
-            $item['type'] = 'routegroup';
-            $r[$path[0]]['children'][$path[1]]['node'] = $item;
-            // 1st tier nodes (routegroup class: app, api)
-            $item['label'] = $this->settings['routes'][$path[0]]['label'] ?? null;
-            $item['type'] = 'routegroup';
-            $r[$path[0]]['node'] = $item;
-        }
-        $r = array_merge_recursive($r, $append);
-        return $r;
-    }
-
 
     ////////////////////////////////////////////////////////////////////
     // SQL HELPERS                                                    //
@@ -250,7 +216,7 @@ class Utils
           $updt = $this->db->rawQuery("UPDATE `".$table."` SET `c_json` = JSON_SET(c_json, '$.id', ?) WHERE c_uid = ?", Array ((int)$id, (int)$id));
           $err += $this->db->getLastErrno();
         }
-        if ($err === 0) { $this->db->commit(); } else { $this->db->rollback(); throw new \Exception(__('Database error: ')." ".$err." ".$this->db->getLastError()); }
+        if ($err === 0) { $this->db->commit(); } else { $this->db->rollback(); throw new \DbException("Database error: ".$err." ".$this->db->getLastError()); }
         return (int)$id;
     }
 

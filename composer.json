@@ -9,13 +9,15 @@
 	"require": {
 		"php": "^8.1",
 		"ext-bcmath": "*",
+		"ext-curl": "*",
 		"ext-json": "*",
 		"middlewares/csp": "^3",
 		"middlewares/trailing-slash": "^2",
 		"monolog/monolog": "^2",
 		"selective/transformer": "^1",
 		"slim/slim": "^4",
-		"voku/anti-xss": "^4"
+		"voku/anti-xss": "^4",
+		"web-token/jwt-framework": "^2.2"
 	},
 	"require-dev": {
 		"ergebnis/composer-normalize": "^2"
