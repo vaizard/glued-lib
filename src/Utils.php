@@ -168,19 +168,21 @@ class Utils
      * and return all this as an indexed array.
      * @return array [description]
      */
-    public function get_routes_array(): array {
+    public function get_routes_array($currentRoute = null): array {
         $routes = $this->routecollector->getRoutes();
         foreach ($routes as $route) {
             $i = $route->getPattern();
             $data[$i]['pattern'] = $route->getPattern();
             $data[$i]['methods'] = array_merge($data[$i]['methods'] ?? [], $route->getMethods());
             if ($route->getName()) $data[$i]['name'] = $route->getName();
+            if ($data[$i]['name'] === $currentRoute) $data[$i]['current'] = true;
             if ($data[$i]['name'] != false) {
                 try {
                     $data[$i]['url'] = $this->routecollector->getRouteParser()->urlFor($data[$i]['name']);
                 } catch (\InvalidArgumentException $e) { $data[$i]['argsrequired'] = true; }
                 $data[$i]['label'] = $this->settings['routes'][$data[$i]['name']]['label'] ?? null;
-            } 
+                $data[$i]['service'] = $this->settings['routes'][$data[$i]['name']]['service'] ?? null;
+            }
         }
         ksort($data, SORT_NATURAL);
         return array_values($data);

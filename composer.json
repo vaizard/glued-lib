@@ -1,20 +1,20 @@
 {
 	"name": "vaizard/glued-lib",
 	"description": "Arbitrary-precision arithmetic library",
+	"license": "MIT",
 	"type": "library",
 	"keywords": [
 		"library"
 	],
-	"license": "MIT",
 	"require": {
 		"php": "^8.1",
-		"ext-json": "*",
 		"ext-bcmath": "*",
-		"slim/slim": "^4",
+		"ext-json": "*",
 		"middlewares/csp": "^3",
 		"middlewares/trailing-slash": "^2",
 		"monolog/monolog": "^2",
 		"selective/transformer": "^1",
+		"slim/slim": "^4",
 		"voku/anti-xss": "^4"
 	},
 	"require-dev": {
@@ -23,6 +23,11 @@
 	"autoload": {
 		"psr-4": {
 			"Glued\\Lib\\": "src/"
+		}
+	},
+	"config": {
+		"allow-plugins": {
+			"ergebnis/composer-normalize": true
 		}
 	}
 }
