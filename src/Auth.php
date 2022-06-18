@@ -207,7 +207,7 @@ class Auth
         } catch (\Exception $e) { throw new DbException($e->getMessage(), $e->getCode(), $e); }
 
         
-        $account['locale'] = $this->utils->default_locale($jwt_claims['locale'] ?? 'en') ?? 'en_US';
+        $account['locale'] = $this->utils->get_default_locale($jwt_claims['locale'] ?? 'en') ?? 'en_US';
 
         try {
             $profile = $this->transform
