@@ -2,6 +2,18 @@
 
 DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 source "$DIR/loadenv.sh"
+source "$DIR/loadenv.sh"
 
-for dir in $(find ./glued/Config/Migrations -not -empty -type d) ; do dbmate -d "${dir}" -s "${datapath}/$(basename `pwd`)/config" migrate; done;
+# NOTE that double sourcing is needed
+# otherwise .env references won't be interpreted
+# DEBUG:
+
+#echo $DATABASE_URL
+
+for dir in $(find ./glued/Config/Migrations -not -empty -type d) ; do 
+  # DEBUG:
+  #echo "dbmate -d ${dir} -s ${datapath}/$(basename `pwd`)/config migrate"
+  dbmate -d "${dir}" -s "${datapath}/$(basename `pwd`)/config" migrate;
+done;
+
 echo "[PASS] migrated"
