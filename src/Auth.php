@@ -223,7 +223,7 @@ class Auth
                 ->map('service.0.handle',   'preferred_username')
                 ->map('website.0.uri',      'website')
                 ->toArray($jwt_claims) ?? [];
-        } catch (\Exception $e) { throw new TransformException($e->getMessage(), $e->getCode(), $e); }
+        } catch (\Exception $e) { throw new InternalException($e->getMessage(), $e->getCode(), $e); }
 
             // log do shadow profile log table
             // TODO shadow profile
