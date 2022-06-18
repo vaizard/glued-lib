@@ -8,6 +8,7 @@ use Glued\Lib\Exceptions\AuthTokenException;
 use Glued\Lib\Exceptions\AuthOidcException;
 use Glued\Lib\Exceptions\AuthJwtException;
 use Glued\Lib\Exceptions\DbException;
+use Glued\Lib\Exceptions\InternalException;
 use Jose\Component\Core\JWK;
 use Jose\Easy\Load;
 use Jose\Component\Core\JWKSet;
