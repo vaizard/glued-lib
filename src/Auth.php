@@ -12,6 +12,8 @@ use Glued\Lib\Exceptions\InternalException;
 use Jose\Component\Core\JWK;
 use Jose\Easy\Load;
 use Jose\Component\Core\JWKSet;
+use Selective\Transformer\ArrayTransformer;
+
 
 
 /**
@@ -198,7 +200,7 @@ class Auth
      * @param array $jwt_claims
      * @return bool
      */
-    public function adduser(array $jwt_claims) : bool {
+    public function adduser(array $jwt_claims) {
 
         // check if user exists
         try {
@@ -211,7 +213,8 @@ class Auth
         $account['locale'] = $this->utils->get_default_locale($jwt_claims['locale'] ?? 'en') ?? 'en_US';
 
         try {
-            $profile = $this->transform
+            $tranform = new ArrayTransformer();
+            $profile = $transform
                 ->map('name.0.fn',          'name')
                 ->map('name.0.given',       'given_name')
                 ->map('name.0.family',      'family_name')
@@ -234,7 +237,7 @@ class Auth
                 $data["c_account"]  = json_encode($account);
                 $data["c_email"]  = $jwt_claims['emaild'] ?? 'NULL';
                 $data["c_nick"]  = $jwt_claims['preferred_username'] ?? 'NULL';
-                $this->db->insert('t_core_users', $data);
+                return $this->db->insert('t_core_users', $data);
             } 
         }
 
