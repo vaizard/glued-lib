@@ -185,10 +185,12 @@ class Auth
     }
 
     // call with users() to get them all
-    // users(["c_uid", $uuid]) to get a specific users
     // users(["c_column1", $something], ["c_column2", $somethingelse]) to filter
+    // see getuser() for an example
     public function users(...$params) :? array {
         foreach ($params as $p) {
+            print_r($p);
+  
             $this->db->where($p[0], $p[1]);
         }
         return $this->db->get("t_core_users", null, [ 
@@ -197,7 +199,9 @@ class Auth
     }
 
     public function getuser(string $uuid) : mixed {
-        $user = $this->users( 'c_uuid = uuid_to_bin(?, true)',[ $uuid ?? '' ])[0];
+        $user = $this->users([ 
+            'c_uuid = uuid_to_bin(?, true)', [ $uuid ]
+        ])[0];
         if ($user) return $user;
         return false;
     }
@@ -229,18 +233,19 @@ class Auth
                 ->toArray($jwt_claims) ?? [];
         } catch (\Exception $e) { throw new InternalException($e->getMessage(), $e->getCode(), $e); }
 
-            // log do shadow profile log table
-            // TODO shadow profile
-            if ($jwt_claims['sub'])  {
-                $data["c_uuid"]     = $this->db->func('uuid_to_bin(?, true)', [$jwt_claims['sub']]);
-                $data["c_profile"]  = json_encode($profile);
-                $data["c_account"]  = json_encode($account);
-                $data["c_email"]  = $jwt_claims['emaild'] ?? 'NULL';
-                $data["c_nick"]  = $jwt_claims['preferred_username'] ?? 'NULL';
-                // catch exception here
-                return $this->db->insert('t_core_users', $data);
-            } 
+        // log do shadow profile log table
+        // TODO shadow profile
+        if ($jwt_claims['sub'])  {
+            $data["c_uuid"]     = $this->db->func('uuid_to_bin(?, true)', [$jwt_claims['sub']]);
+            $data["c_profile"]  = json_encode($profile);
+            $data["c_account"]  = json_encode($account);
+            $data["c_email"]  = $jwt_claims['emaild'] ?? 'NULL';
+            $data["c_nick"]  = $jwt_claims['preferred_username'] ?? 'NULL';
+            // catch exception here
+            return $this->db->insert('t_core_users', $data);
         }
+        return false;
+    }
 
 
 
