@@ -196,22 +196,22 @@ class Auth
         ]);
     }
 
+    public function getuser(string $uuid) : mixed {
+        $user = $this->users(['c_uuid = uuid_to_bin(?, true)'], $uuid ?? '')[0];
+        if ($user) return $user;
+        return false;
+    }
+
     /**
      * @param array $jwt_claims
      * @return bool
      */
-    public function adduser(array $jwt_claims) {
+    public function adduser(array $jwt_claims) : mixed {
+        // if user exists, break (return false)
+        if ($this->getuser($jwt_claims['sub'])) return false;
 
-        // check if user exists
-        try {
-            $this->db->where('c_uuid = uuid_to_bin(?, true)', [ $jwt_claims['sub'] ?? '' ]);
-            $user = $this->db->getOne('t_core_users', null);
-            if ($user) die('user already exists');
-        } catch (\Exception $e) { throw new DbException($e->getMessage(), $e->getCode(), $e); }
-
-        
+        // else add user
         $account['locale'] = $this->utils->get_default_locale($jwt_claims['locale'] ?? 'en') ?? 'en_US';
-
         try {
             $tranform = new ArrayTransformer();
             $profile = $transform
@@ -237,6 +237,7 @@ class Auth
                 $data["c_account"]  = json_encode($account);
                 $data["c_email"]  = $jwt_claims['emaild'] ?? 'NULL';
                 $data["c_nick"]  = $jwt_claims['preferred_username'] ?? 'NULL';
+                // catch exception here
                 return $this->db->insert('t_core_users', $data);
             } 
         }
