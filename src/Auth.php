@@ -197,7 +197,7 @@ class Auth
     }
 
     public function getuser(string $uuid) : mixed {
-        $user = $this->users(['c_uuid = uuid_to_bin(?, true)'], $uuid ?? '')[0];
+        $user = $this->users('c_uuid = uuid_to_bin(?, true)', $uuid ?? '')[0];
         if ($user) return $user;
         return false;
     }
