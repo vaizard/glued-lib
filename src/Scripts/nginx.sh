@@ -7,4 +7,5 @@ source "$DIR/loadenv.sh"
 cp -r ./glued/Config/Nginx/* /etc/nginx
 if [ ! -f "/etc/nginx/sites-enabled/$(basename `pwd`)" ]; then ln -s "/etc/nginx/sites-available/$(basename `pwd`)" /etc/nginx/sites-enabled; fi
 systemctl reload nginx
-echo "[PASS] MICROSERVICE $(basename `pwd`) running"
+echo "[PASS] MICROSERVICE $(basename `pwd`) running."
+echo ""
