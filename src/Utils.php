@@ -190,20 +190,6 @@ class Utils
         return array_values($data);
     }
 
-    /**
-     * get_routes_map() turns the indexed array into an associative array (map).
-     * The key is the route name. get_routes_map() is used by get_routes_tree().
-     * @return array [description]
-     */
-    private function get_routes_map(): array {
-        $routes = $this->get_routes_array();
-        foreach ($routes as $route) {
-            if ($route['name']) { $res[$route['name']] = $route; }
-        }
-        return $res;
-    }
-
-
     ////////////////////////////////////////////////////////////////////
     // SQL HELPERS                                                    //
     ////////////////////////////////////////////////////////////////////
