@@ -169,7 +169,7 @@ class Utils
      * and return all this as an indexed array.
      * @return array [description]
      */
-    public function get_routes_array($currentRoute = null): array {
+    public function get_routes($currentRoute = null): array {
         $routes = $this->routecollector->getRoutes();
         foreach ($routes as $route) {
             $i = $route->getPattern();
