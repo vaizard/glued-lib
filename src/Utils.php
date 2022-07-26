@@ -161,7 +161,7 @@ class Utils
     }
 
     /**
-     * get_routes_array() will
+     * get_routes() will
      * - get slim routes from the route collector and
      * - append the pattern and implemented methods
      * - append the route name
