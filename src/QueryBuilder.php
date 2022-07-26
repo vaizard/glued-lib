@@ -8,9 +8,9 @@ namespace Glued\Lib;
  */
 class QueryBuilder
 {
-    public static function select(string ...$select): QuerySelect
+    public static function select(string $query): QuerySelect
     {
-        return new QuerySelect($select);
+        return new QuerySelect($query);
     }
 
     public static function insert(string $into): QueryInsert

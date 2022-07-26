@@ -8,12 +8,7 @@ class QuerySelect implements QueryInterface
     /**
      * @var string
      */
-    private $query = [];
-
-    /**
-     * @var array<string>
-     */
-    private $fields = [];
+    private $query = "";
 
     /**
      * @var array<string>
@@ -50,19 +45,15 @@ class QuerySelect implements QueryInterface
         $this->query = $query;
     }
 
-    public function select(string ...$select): self
+    public function query($query): self
     {
-        foreach ($select as $arg) {
-            $this->fields[] = $arg;
-        }
+        $this->query = $query;
         return $this;
     }
 
     public function __toString(): string
     {
         return $this->query
-            . ($this->select === [] ? '' : 'SELECT ' . implode(', ', $this->fields))
-            . ($this->select === [] ? '' : ' FROM ' . implode(', ', $this->from))
             . ($this->leftJoin === [] ? '' : ' LEFT JOIN '. implode(' LEFT JOIN ', $this->leftJoin))
             . ($this->innerJoin === [] ? '' : ' INNER JOIN '. implode(' INNER JOIN ', $this->innerJoin))
             . ($this->conditions === [] ? '' : ' WHERE ' . implode(' AND ', $this->conditions))
@@ -75,12 +66,6 @@ class QuerySelect implements QueryInterface
         foreach ($where as $arg) {
             $this->conditions[] = $arg;
         }
-        return $this;
-    }
-
-    public function from(string $table, ?string $alias = null): self
-    {
-        $this->from[] = $alias === null ? $table : "${table} AS ${alias}";
         return $this;
     }
 
