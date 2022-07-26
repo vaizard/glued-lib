@@ -8,22 +8,22 @@ namespace Glued\Lib;
  */
 class QueryBuilder
 {
-    public static function select(string ...$select): Select
+    public static function select(string ...$select): QuerySelect
     {
         return new QuerySelect($select);
     }
 
-    public static function insert(string $into): Insert
+    public static function insert(string $into): QueryInsert
     {
         return new QueryInsert($into);
     }
 
-    public static function update(string $table): Update
+    public static function update(string $table): QueryUpdate
     {
         return new QueryUpdate($table);
     }
 
-    public static function delete(string $table): Delete
+    public static function delete(string $table): QueryDelete
     {
         return new QueryDelete($table);
     }
