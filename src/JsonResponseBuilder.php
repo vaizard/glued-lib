@@ -214,7 +214,7 @@ class JsonResponseBuilder {
                                 'title' => 'Really nice'
                             ],
                         ],
-                        'pagination' => [ 
+                        'pagination' => [
                             "pageSize" => 2,
                         ],
 

@@ -1,6 +1,6 @@
 {
 	"name": "vaizard/glued-lib",
-	"description": "Arbitrary-precision arithmetic library",
+	"description": "Common code for Glued microservices.",
 	"license": "MIT",
 	"type": "library",
 	"keywords": [
