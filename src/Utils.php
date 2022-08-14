@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace Glued\Lib;
 
 use Exception;
+use Psr\Http\Message\ResponseInterface as Response;
 use Slim\Routing\RouteContext;
 use Glued\Lib\Exceptions\DbException;
 
@@ -175,8 +176,8 @@ class Utils
             $i = $route->getPattern();
             $data[$i]['pattern'] = $route->getPattern();
             $data[$i]['methods'] = array_merge($data[$i]['methods'] ?? [], $route->getMethods());
-            if ($route->getName()) $data[$i]['name'] = $route->getName();
-            if ($data[$i]['name'] === $currentRoute) $data[$i]['current'] = true;
+            if ($route->getName()) { $data[$i]['name'] = $route->getName(); }
+            if ($data[$i]['name'] === $currentRoute) { $data[$i]['current'] = true; }
             if ($data[$i]['name'] != false) {
                 try {
                     $data[$i]['url'] = $this->settings['glued']['protocol'].$this->settings['glued']['hostname'].$this->routecollector->getRouteParser()->urlFor($data[$i]['name']);
@@ -194,17 +195,81 @@ class Utils
     // SQL HELPERS                                                    //
     ////////////////////////////////////////////////////////////////////
 
-    public function sql_insert_with_json($table, $row) {
-        $this->db->startTransaction(); 
-        $id = $this->db->insert($table, $row);
-        $err = $this->db->getLastErrno();
-        if ($id) {
-          $updt = $this->db->rawQuery("UPDATE `".$table."` SET `c_json` = JSON_SET(c_json, '$.id', ?) WHERE c_uid = ?", Array ((int)$id, (int)$id));
-          $err += $this->db->getLastErrno();
+    public function validateJsonpath(string &$path): bool {
+        // convert key to lowercase
+        $path = strtolower($path);
+
+        // https://regex101.com/
+        // ensure key doesn't start or end with _, doesn't contain __,
+        // and consists of lowercase alphanumeric characters _, and -.
+        if (preg_match("/^(?!_)(?!.*__)[a-z0-9_-]+(?<!_)$/", $path) !== 1) { return false; }
+
+        // split by _ into elements
+        $arr = explode("_", $path);
+
+        // ensure key doesn't start or end with _, doesn't contain __,
+        // and consists of lowercase alphanumeric characters _, and -.
+        foreach ($arr as $item) {
+            if (preg_match("/^(?!-)(?!.*--)[a-z0-9-]+(?<!-)$/", $item) !== 1) { return false; }
         }
-        if ($err === 0) { $this->db->commit(); } else { $this->db->rollback(); throw new \DbException("Database error: ".$err." ".$this->db->getLastError()); }
-        return (int)$id;
+
+        $path = implode(".", $arr);
+        return true;
     }
+
+    function mysqlJsonQueryFromRequest($reqparams, &$qstring, &$qparams, $wheremods = []) {
+
+        // define fallback where modifier for the 'uuid' reqparam.
+        if (!array_key_exists('uuid', $wheremods)) {
+            $wheremods['uuid'] = 'c_uuid = uuid_to_bin( ? , true)';
+        }
+
+        foreach ($reqparams as $key => $val) {
+            // if request parameter name ($key) doesn't validate, skip to next
+            // foreach item, else replace _ with . in $key to get a valid jsonpath
+            if ($this->validateJsonpath($key) === false) { continue; }
+
+            // default where construct that transposes https://server/endpoint?mykey=myval
+            // to sql query substring `where (`c_data`->>"$.mykey" = ?)`
+            $w = '(`c_data`->>"$.'.$key.'" = ?)';
+            foreach ($wheremods as $wmk => $wmv) {
+                if ($key === $wmk) { $w = $wmv; }
+            }
+
+            if (is_array($val)) {
+                foreach ($val as $v) {
+                    $qstring->where($w);
+                    $qparams[] = $v;
+                }
+            } else {
+                $qstring->where($w);
+                $qparams[] = $val;
+            }
+        }
+        // envelope in json_arrayagg to return a single row with the complete result
+        $qstring = "select json_arrayagg(res_rows) from ( $qstring ) as res_json";
+    }
+
+    public function mysqlJsonResponse(Response $response, array $jsondata = [], string $dataitem = 'data'): Response {
+        // construct the response metadata json, remove last character (closing curly bracket)
+        $meta['service']   = basename(__ROOT__);
+        $meta['timestamp'] = microtime();
+        $meta['code']      = 200;
+        $meta['message']   = 'OK';
+        $meta = json_encode($meta, JSON_FORCE_OBJECT);
+        $meta = mb_substr($meta, 0, -1);
+
+        // get the json from a json_arrayagg() response
+        $key = array_keys($jsondata[0])[0];
+        $jsondata = $jsondata[0][$key];
+        if (is_null($jsondata)) { $jsondata = '{}'; }
+
+        // write the response body
+        $body = $response->getBody();
+        $body->write($meta.', "'.$dataitem.'": '.$jsondata."}");
+        return $response->withBody($body)->withStatus(200)->withHeader('Content-Type', 'application/json');
+    }
+
 
 
     ////////////////////////////////////////////////////////////////////
