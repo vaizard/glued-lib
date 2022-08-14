@@ -195,7 +195,15 @@ class Utils
     // SQL HELPERS                                                    //
     ////////////////////////////////////////////////////////////////////
 
-    public function validateJsonpath(string &$path): bool {
+    /**
+     * Validates and transforms valid (GET) request parameters to JSON paths.
+     * https://server/api?Param_sub-param=value => param.sub-param
+     * @param string $path Request parameter transformed to a JSON path if valid.
+     * Transformation replaces _ with . and converts all uppercase characters to lowercase.
+     * @return bool true when $path is valid, false when invalid. Invalid $path
+     * starts or ends with _, -, - contains __, --, or any other characters except a-z 0-9.
+     */
+    public function reqParamToJsonPath(string &$path): bool {
         // convert key to lowercase
         $path = strtolower($path);
 
@@ -217,7 +225,23 @@ class Utils
         return true;
     }
 
-    function mysqlJsonQueryFromRequest($reqparams, &$qstring, &$qparams, $wheremods = []) {
+    /**
+     * Constructs a SQL query against Glued's standard mysql collections with a minimal set of columns:
+     * c_uuid - binary stored uuid with elements swapped for optimized storage, see `true` in `uuid_to_bin(? , true)`
+     * c_data - the json data blob
+     * c_stor_name - human-readable name for the object when accessed by the stor microservice.
+     * The $qstring (i.e. SELECT) passed by reference will be appended by WHERE clauses constructed according to
+     * $reqparams and $wheremods and finally enveloped by (changed into a subquery of) json_arrayagg().
+     * This allows to return the whole response from mysql as a json string without further transformation of the data
+     * in app logic.
+     * @param array $reqparams (GET) request parameters that are converted them to SQL WHERE clauses
+     * @param QueryBuilder $qstring Base SQL query string (i.e. select) passed as a reference to a QueryBuilder object.
+     * @param array $qparams (GET) request parameter values to be used in WHERE clauses
+     * @param array $wheremods $reqparam WHERE query modifiers. Since the JSON path of the parsed $reqparam vary,
+     * a similar variability needs to be represented in the relevant WHERE query subelements.
+     * @return void
+     */
+    function mysqlJsonQueryFromRequest(array $reqparams = [], QueryBuilder &$qstring, array &$qparams, array $wheremods = []) {
 
         // define fallback where modifier for the 'uuid' reqparam.
         if (!array_key_exists('uuid', $wheremods)) {
@@ -227,7 +251,7 @@ class Utils
         foreach ($reqparams as $key => $val) {
             // if request parameter name ($key) doesn't validate, skip to next
             // foreach item, else replace _ with . in $key to get a valid jsonpath
-            if ($this->validateJsonpath($key) === false) { continue; }
+            if ($this->reqParamToJsonPath($key) === false) { continue; }
 
             // default where construct that transposes https://server/endpoint?mykey=myval
             // to sql query substring `where (`c_data`->>"$.mykey" = ?)`
@@ -250,6 +274,15 @@ class Utils
         $qstring = "select json_arrayagg(res_rows) from ( $qstring ) as res_json";
     }
 
+    /**
+     * Creates a metadata json header and appends $jsondata to path $.data (if $dataitem is kept default)
+     * $jsondata would be typically acquired from db->rawQuery($qs, $qp) with the $qs and $gp parameters constructed
+     * by mysqlJsonQueryFromRequest. Returns a PSR Response.
+     * @param Response $response
+     * @param array $jsondata
+     * @param string $dataitem
+     * @return Response
+     */
     public function mysqlJsonResponse(Response $response, array $jsondata = [], string $dataitem = 'data'): Response {
         // construct the response metadata json, remove last character (closing curly bracket)
         $meta['service']   = basename(__ROOT__);
