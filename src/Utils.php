@@ -241,7 +241,7 @@ class Utils
      * a similar variability needs to be represented in the relevant WHERE query subelements.
      * @return void
      */
-    function mysqlJsonQueryFromRequest(array $reqparams, QuerySelect &$qstring, array &$qparams, array $wheremods = []) {
+    function mysqlJsonQueryFromRequest(array $reqparams, QuerySelect &$qstring, mixed &$qparams, array $wheremods = []) {
 
         // define fallback where modifier for the 'uuid' reqparam.
         if (!array_key_exists('uuid', $wheremods)) {
