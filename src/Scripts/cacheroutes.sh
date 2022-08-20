@@ -11,7 +11,7 @@ if [ -f "glued/Config/routes.yaml" ]; then
   echo "[PASS] routes rebuilt."
   echo ""
 else
-  echo "[FAIL] routes failed to rebuild."
+  echo "[FAIL] routes.yaml missing in glued/Config."
   echo ""
   exit 1
 fi
