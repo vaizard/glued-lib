@@ -12,8 +12,8 @@ source "$DIR/loadenv.sh"
 
 for dir in $(find ./glued/Config/Migrations -not -empty -type d) ; do 
   # DEBUG:
-  #echo "dbmate -d ${dir} -s ${datapath}/$(basename `pwd`)/config migrate"
-  dbmate -d "${dir}" -s "${datapath}/$(basename `pwd`)/config" migrate;
+  #echo "dbmate -d ${dir} -s ${datapath}/$(basename `pwd`)/schema.sql migrate"
+  dbmate -d "${dir}" -s "${datapath}/$(basename `pwd`)/schema.sql" migrate;
 done;
 
 echo "[PASS] migrated"
