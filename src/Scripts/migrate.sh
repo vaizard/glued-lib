@@ -14,7 +14,7 @@ if ! mysql -u $mysql_username -p"${mysql_password}" -h ${mysql_hostname} -e "use
   echo "[WARN] Connecting to database $mysql_database failed."
   echo "[INFO] Attempting to create database and assign privileges.";
   mysql -e "CREATE DATABASE $mysql_database /*\!40100 DEFAULT CHARACTER SET utf8 */;"
-  mysql -e "CREATE USER $mysql_username@localhost IDENTIFIED BY '$mysql_password';"
+  mysql -e "CREATE USER $mysql_username@$mysql_hostname IDENTIFIED BY '$mysql_password';"
   mysql -e "GRANT ALL PRIVILEGES ON glued.* TO '$mysql_username'@'$mysql_hostname';"
   mysql -e "FLUSH PRIVILEGES;"
   exit;
