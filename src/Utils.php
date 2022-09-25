@@ -255,7 +255,7 @@ class Utils
 
             // default where construct that transposes https://server/endpoint?mykey=myval
             // to sql query substring `where (`c_data`->>"$.mykey" = ?)`
-            $w = '(`c_data`->>"$.'.$key.'" = ?)';
+            $w = '(`c_data`->>"$.\"'.$key.'\"" = ?)';
             foreach ($wheremods as $wmk => $wmv) {
                 if ($key === $wmk) { $w = $wmv; }
             }
