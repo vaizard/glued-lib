@@ -221,11 +221,6 @@ class Utils
             if (preg_match("/^(?!-)(?!.*--)[a-z0-9-]+(?<!-)$/", $item) !== 1) { return false; }
         }
         $path = implode(".", $arr);
-
-        // ensure keys with a - don't emit a bad json path error
-        // i.e. $.some.hypen-path will change to $."some"."hypen-path"
-        $path = '\"'.str_replace('.', '\".\"', $path).'\"';
-
         return true;
     }
 
@@ -253,13 +248,19 @@ class Utils
         }
 
         foreach ($reqparams as $key => $val) {
+
             // if request parameter name ($key) doesn't validate, skip to next
             // foreach item, else replace _ with . in $key to get a valid jsonpath
             if ($this->reqParamToJsonPath($key) === false) { continue; }
 
+            // to correctly construct the jsonpath, independent on the $key
+            // containing a hypen or not, each $key must be encapsulated with quotes
+            // 'some_hypen-path' -> 'some.hypen-path' -> '"some"."hypen-path"'
+            $jsonpath = '\"'.str_replace('.', '\".\"', $key).'\"';
             // default where construct that transposes https://server/endpoint?mykey=myval
-            // to sql query substring `where (`c_data`->>"$.mykey" = ?)`
-            $w = '(`c_data`->>"$.'.$key.'" = ?)';
+            // to sql query substring `where (`c_data`->>'$."mykey"' = ?)`
+            $w = '(`c_data`->>"$.'.$jsonpath.'" = ?)';
+
             foreach ($wheremods as $wmk => $wmv) {
                 if ($key === $wmk) { $w = $wmv; }
             }
@@ -274,6 +275,7 @@ class Utils
                 $qparams[] = $val;
             }
         }
+
         // envelope in json_arrayagg to return a single row with the complete result
         $qstring = "select json_arrayagg(res_rows) from ( $qstring ) as res_json";
     }
@@ -322,9 +324,6 @@ class Utils
         curl_close($curl_handle);
         return $data;
     }
-
-
-
 
 
 }
