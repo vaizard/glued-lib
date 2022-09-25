@@ -220,8 +220,12 @@ class Utils
         foreach ($arr as $item) {
             if (preg_match("/^(?!-)(?!.*--)[a-z0-9-]+(?<!-)$/", $item) !== 1) { return false; }
         }
-
         $path = implode(".", $arr);
+
+        // ensure keys with a - don't emit a bad json path error
+        // i.e. $.some.hypen-path will change to $."some"."hypen-path"
+        $path = '\"'.str_replace('.', '\".\"', $path).'\"';
+
         return true;
     }
 
@@ -255,7 +259,7 @@ class Utils
 
             // default where construct that transposes https://server/endpoint?mykey=myval
             // to sql query substring `where (`c_data`->>"$.mykey" = ?)`
-            $w = '(`c_data`->>"$.\"'.$key.'\"" = ?)';
+            $w = '(`c_data`->>"$.'.$key.'" = ?)';
             foreach ($wheremods as $wmk => $wmv) {
                 if ($key === $wmk) { $w = $wmv; }
             }
