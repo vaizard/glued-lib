@@ -209,7 +209,7 @@ class ComposerHooks
             $data_uri = 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key='.$_ENV['geoip'].'&suffix=tar.gz';
             $hash_uri = 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key='.$_ENV['geoip'].'&suffix=tar.gz.sha256';
             $data_file = $_ENV['datapath'].'/'.basename(__ROOT__).'/cache/geoip/maxmind-geolite2-city.mmdb.tar.gz';
-            $hash_file = '';
+            $hash_file = $data_file . '.sha256';
             $hash_dist = '';
 
             if ( file_exists($data_file) and (time()-filemtime($data_file) < 3600) and (filesize($data_file) > 4096) ) {
@@ -226,8 +226,8 @@ class ComposerHooks
                 }
 
                 // If geoip database gzip checksum and checksum file don't match, die
-                if (file_exists($data_file . '.sha256')) {
-                    $hash_dist = explode(" ", file_get_contents($data_file . '.sha256'), 2)[0];
+                if (file_exists($hash_file)) {
+                    $hash_dist = explode(" ", file_get_contents($hash_file), 2)[0];
                 }
                 if (file_exists($data_file)) {
                     $hash_file = hash_file('sha256', $data_file);
@@ -250,10 +250,10 @@ class ComposerHooks
                             if (strpos(basename((string)$child), $pattern) !== false) {
                                 // get the relative path within the archive (i.e. GeoLite2-Country_20200609/GeoLite2-Country.mmdb)
                                 $relpath = str_replace(basename($data_file) . '/', '', strstr((string)$child, basename($data_file)));
-                                $phar->extractTo(__ROOT__ . '/private/data/core', $relpath, true);
-                                copy(__ROOT__ . '/private/data/core/' . $relpath, __ROOT__ . '/private/data/core/' . str_replace('.tar.gz', '', basename($data_file)));
-                                unlink(__ROOT__ . '/private/data/core/' . $relpath);
-                                rmdir(dirname(__ROOT__ . '/private/data/core/' . $relpath));
+                                $phar->extractTo($_ENV['datapath'].'/'.basename(__ROOT__).'/cache/geoip', $relpath, true);
+                                //copy(__ROOT__ . '/private/data/core/' . $relpath, __ROOT__ . '/private/data/core/' . str_replace('.tar.gz', '', basename($data_file)));
+                                //unlink(__ROOT__ . '/private/data/core/' . $relpath);
+                                //rmdir(dirname(__ROOT__ . '/private/data/core/' . $relpath));
                             }
                         }
                     }
