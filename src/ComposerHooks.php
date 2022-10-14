@@ -53,7 +53,7 @@ class ComposerHooks
         $class_sy = new Yaml;
         $class_ye = new YamlExpander(new NullLogger());
 
-        // Load and parse the default yaml config. 
+        // Load and parse the default yaml config.
         $config  = [];
         $files   = [];
         $files[] = __ROOT__ . '/glued/Config/defaults.yaml';
@@ -62,7 +62,7 @@ class ComposerHooks
         foreach ($files as $file) {
             $yaml = file_get_contents($file);
             $array = $class_sy->parse($yaml, $class_sy::PARSE_CONSTANT);
-            $config = array_replace_recursive($config, $class_ye->expandArrayProperties($array) );
+            $config = array_replace_recursive($config, $class_ye->expandArrayProperties($array));
         }
 
         $refs['env'] = array_merge($seed, $_ENV);
@@ -74,7 +74,7 @@ class ComposerHooks
         foreach ($files as $file) {
             $yaml = file_get_contents($file);
             $array = $class_sy->parse($yaml);
-            $routes = array_merge($routes, $class_ye->expandArrayProperties($array)['routes'] );
+            $routes = array_merge($routes, $class_ye->expandArrayProperties($array)['routes']);
         }
         $ret['routes'] = $routes;
         return $ret;
