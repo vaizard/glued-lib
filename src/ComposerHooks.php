@@ -46,21 +46,22 @@ class ComposerHooks
         (!isset($_ENV['hostname']) or $_ENV['hostname']=="") && die('[FAIL] hostname env variable not set or is empty. Suggestions: ' .$hostnames . PHP_EOL . PHP_EOL);
         (!isset($_ENV['datapath'])) && die('[FAIL] datapath env variable not set.' . PHP_EOL . PHP_EOL);
         (!isset($_ENV['identity'])) && die('[FAIL] identity env variable not set.' . PHP_EOL . PHP_EOL);
+        $refs['env'] = array_merge($seed, $_ENV);
+
 
         // Init yaml parsing
         $class_sy = new Yaml;
         $class_ye = new YamlExpander(new NullLogger());
 
-        // Load and parse the yaml configs. Replace yaml references
-        // with $_ENV and $seed ($_ENV has precedence)
+        // Load and parse the default yaml config. 
         $config  = [];
         $files   = [];
         $files[] = __ROOT__ . '/glued/Config/defaults.yaml';
-        $files   = array_merge($files, glob($_ENV['datapath'] . '/*/config/*.yaml'));
+        $files   = array_merge($files, $refs['env']['datapath'] . '/*/config/*.yaml'));
 
         foreach ($files as $file) {
             $yaml = file_get_contents($file);
-            $array = $class_sy->parse($yaml);
+            $array = $class_sy->parse($yaml, $class_sy::PARSE_CONSTANT);
             $config = array_replace_recursive($config, $class_ye->expandArrayProperties($array) );
         }
 
@@ -115,6 +116,29 @@ class ComposerHooks
         EOT;
         file_put_contents('/etc/nginx/snippets/server/generated_ssl_stapling.conf', $comment.$output);
 
+        echo "[INFO] Generating nginx cors map." . PHP_EOL;
+
+       
+        $origins = $settings['nginx']['cors']['origin'];
+        if (!is_array($settings['nginx']['cors']['origin'])) { 
+            $origins = [];
+            $origins[0] = $settings['nginx']['cors']['origin']; 
+        }
+
+        $output  = '';
+        $output .= 'map $http_origin $origin_allowed {'.PHP_EOL;
+        $output .= '    default 0;'.PHP_EOL;
+        foreach ($origins as $o) {
+        $output .= '    '.$o.' 1;'.PHP_EOL;
+        }
+        $output .= '}'.PHP_EOL;
+        $output .= 'map $origin_allowed $origin {'.PHP_EOL;
+        $output .= '    default "";'.PHP_EOL;
+        $output .= '    1 $http_origin;'.PHP_EOL;
+        $output .= '}'.PHP_EOL;
+
+        file_put_contents('/etc/nginx/conf.d/cors_map.conf', $comment.$output);
+
         echo "[INFO] Generating nginx cors headers." . PHP_EOL;
         $origin_allow = $settings['nginx']['cors']['origin'];
         $hdr_allow    = implode(', ', $settings['nginx']['cors']['headers.allow']);
@@ -122,7 +146,7 @@ class ComposerHooks
         $cred_allow   = $settings['nginx']['cors']['credentials'] ? 'true' : 'false';
         $max_age      = $settings['nginx']['cors']['cache'];
         $output = <<<EOT
-        more_set_headers 'Access-Control-Allow-Origin: {$origin_allow}';
+        more_set_headers 'Access-Control-Allow-Origin: \$origin';
         more_set_headers 'Access-Control-Allow-Headers: {$hdr_allow}';
         more_set_headers 'Access-Control-Expose-Headers: {$hdr_expose}';
         more_set_headers 'Access-Control-Allow-Credentials: {$cred_allow}';
