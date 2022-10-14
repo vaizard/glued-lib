@@ -57,7 +57,7 @@ class ComposerHooks
         $config  = [];
         $files   = [];
         $files[] = __ROOT__ . '/glued/Config/defaults.yaml';
-        $files   = array_merge($files, $refs['env']['datapath'] . '/*/config/*.yaml');
+        $files   = array_merge($files, glob($refs['env']['datapath'] . '/*/config/*.yaml'));
 
         foreach ($files as $file) {
             $yaml = file_get_contents($file);
