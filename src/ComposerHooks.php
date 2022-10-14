@@ -250,10 +250,11 @@ class ComposerHooks
                             if (strpos(basename((string)$child), $pattern) !== false) {
                                 // get the relative path within the archive (i.e. GeoLite2-Country_20200609/GeoLite2-Country.mmdb)
                                 $relpath = str_replace(basename($data_file) . '/', '', strstr((string)$child, basename($data_file)));
-                                $phar->extractTo($_ENV['datapath'].'/'.basename(__ROOT__).'/cache/geoip', $relpath, true);
-                                //copy(__ROOT__ . '/private/data/core/' . $relpath, __ROOT__ . '/private/data/core/' . str_replace('.tar.gz', '', basename($data_file)));
-                                //unlink(__ROOT__ . '/private/data/core/' . $relpath);
-                                //rmdir(dirname(__ROOT__ . '/private/data/core/' . $relpath));
+                                $basedir = $_ENV['datapath'].'/'.basename(__ROOT__).'/cache/geoip/';
+                                $phar->extractTo($basedir, $relpath, true);
+                                copy($basedir . $relpath, $basedir . str_replace('.tar.gz', '', basename($data_file)));
+                                unlink($basedir . $relpath);
+                                rmdir(dirname($basedir . $relpath));
                             }
                         }
                     }
