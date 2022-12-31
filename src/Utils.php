@@ -289,7 +289,7 @@ class Utils
      * @param string $dataitem
      * @return Response
      */
-    public function mysqlJsonResponse(Response $response, array $jsondata = [], string $dataitem = 'data'): Response {
+    public function mysqlJsonResponse(Response $response, array $jsondata = [], string $dataitem = 'data', $meta = []): Response {
         // construct the response metadata json, remove last character (closing curly bracket)
         $meta['service']   = basename(__ROOT__);
         $meta['timestamp'] = microtime();
