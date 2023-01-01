@@ -191,7 +191,7 @@ class Auth
         foreach ($params as $p) {
               $this->db->where($p[0], $p[1]);
         }
-        return $this->db->get("t_core_users", null, [ 
+        return $this->db->get("t_core_users", null, [
             "BIN_TO_UUID(`c_uuid`) AS `c_uuid`", "c_profile", "c_account", "c_attr", "c_locale", "c_nick", "c_ts_created", "c_ts_modified", "c_stor_name", "c_email"
         ]);
     }
@@ -199,8 +199,9 @@ class Auth
     public function getuser(string $uuid) : mixed {
         $user = $this->users([ 
             'c_uuid = uuid_to_bin(?, true)', [ $uuid ]
-        ])[0];
-        if ($user) return $user;
+        ]);
+        if (!is_array($user)) return false; // empty() below is meaningless if $user is not array
+        if (!empty($user)) return $user[0];
         return false;
     }
 
@@ -237,7 +238,7 @@ class Auth
             $data["c_uuid"]     = $this->db->func('uuid_to_bin(?, true)', [$jwt_claims['sub']]);
             $data["c_profile"]  = json_encode($profile);
             $data["c_account"]  = json_encode($account);
-            $data["c_email"]  = $jwt_claims['emaild'] ?? 'NULL';
+            $data["c_email"]  = $jwt_claims['email'] ?? 'NULL';
             $data["c_nick"]  = $jwt_claims['preferred_username'] ?? 'NULL';
             // catch exception here
             return $this->db->insert('t_core_users', $data);
