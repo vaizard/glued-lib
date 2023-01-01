@@ -185,13 +185,11 @@ class Auth
     }
 
     // call with users() to get them all
-    // users(["c_column1", $something], ["c_column2", $somethingelse]) to filter
+    // users(["c_column1", $something], ["c_column2", $somethingelse]) to filter (AND logic applies)
     // see getuser() for an example
     public function users(...$params) :? array {
         foreach ($params as $p) {
-            print_r($p);
-  
-            $this->db->where($p[0], $p[1]);
+              $this->db->where($p[0], $p[1]);
         }
         return $this->db->get("t_core_users", null, [ 
             "BIN_TO_UUID(`c_uuid`) AS `c_uuid`", "c_profile", "c_account", "c_attr", "c_locale", "c_nick", "c_ts_created", "c_ts_modified", "c_stor_name", "c_email"
