@@ -192,7 +192,7 @@ class Auth
               $this->db->where($p[0], $p[1]);
         }
         return $this->db->get("t_core_users", null, [
-            "BIN_TO_UUID(`c_uuid`) AS `c_uuid`", "c_profile", "c_account", "c_attr", "c_locale", "c_nick", "c_ts_created", "c_ts_modified", "c_stor_name", "c_email"
+            "BIN_TO_UUID(`c_uuid`) AS `c_uuid`", "c_profile", "c_attr", "c_locale", "c_handle", "c_email", "c_ts_created", "c_ts_modified", "c_stor_name"
         ]);
     }
 
@@ -214,35 +214,85 @@ class Auth
         if ($this->getuser($jwt_claims['sub'])) return false;
 
         // else add user
-        $account['locale'] = $this->utils->get_default_locale($jwt_claims['locale'] ?? 'en') ?? 'en_US';
-        try {
-            $tranform = new ArrayTransformer();
-            $profile = $transform
-                ->map('name.0.fn',          'name')
-                ->map('name.0.given',       'given_name')
-                ->map('name.0.family',      'family_name')
-                ->map('name.0.@.src',       'iss')
-                ->map('email.0.uri',        'email')
-                ->map('email.0.@.src',      'iss')
-                ->set('email.0.@.pref',     1)
-                ->set('service.0.kind',     'oidc')
-                ->map('service.0.uri',      'iss')
-                ->map('service.0.handle',   'preferred_username')
-                ->map('website.0.uri',      'website')
-                ->toArray($jwt_claims) ?? [];
-        } catch (\Exception $e) { throw new InternalException($e->getMessage(), $e->getCode(), $e); }
+        $attr['locale'] = $this->utils->get_default_locale($jwt_claims['locale'] ?? 'en') ?? 'en_US';
+        $transform = new ArrayTransformer();
+        $transform
+            ->map(destination: 'service.0.uri',     source: 'iss')
+            ->map(destination: 'service.0.handle',  source: 'preferred_username')
+            ->set(destination: 'service.0.kind',     value: 'oidc')
+            ->map(destination: 'service.0._iss',    source: 'iss')
+            ->set(destination: 'service.0._iat',     value: time())
+            ->map(destination: 'service.0._sub',    source: 'sub')
+            ->set(destination: 'service.0.uuid',     value: \Ramsey\Uuid\Uuid::uuid4()->toString());
 
-        // log do shadow profile log table
-        // TODO shadow profile
+        if (array_key_exists('name', $jwt_claims) and $jwt_claims['email'] != "") {
+            $transform
+                ->map(destination: 'name.0.fn', source: 'name')
+                ->map(destination: 'name.0.given', source: 'given_name')
+                ->map(destination: 'name.0.family', source: 'family_name')
+                ->map(destination: 'name.0._iss', source: 'iss')
+                ->set(destination: 'name.0._iat', value: time())
+                ->map(destination: 'name.0._sub', source: 'sub')
+                ->set(destination: 'name.0.uuid', value: \Ramsey\Uuid\Uuid::uuid4()->toString());
+        }
+
+        if (array_key_exists('email', $jwt_claims) and $jwt_claims['email'] != "") {
+            $transform
+                ->map(destination: 'email.0.value', source: 'email')
+                ->map(destination: 'email.0._iss', source: 'iss')
+                ->set(destination: 'email.0._iat', value: time())
+                ->map(destination: 'email.0._sub', source: 'sub')
+                ->set(destination: 'email.0._primary', value: 1);
+                ->set(destination: 'email.0.uuid', value: \Ramsey\Uuid\Uuid::uuid4()->toString())
+        }
+
+        if (array_key_exists('website', $jwt_claims) and $jwt_claims['website'] != "") {
+            $transform
+                ->map(destination: 'uri.0.value',      source: 'website')
+                ->set(destination: 'uri.0.kind',        value: 'website')
+                ->map(destination: 'uri.0._iss',       source: 'iss')
+                ->set(destination: 'uri.0._iat',        value: time())
+                ->map(destination: 'uri.0._sub',       source: 'sub')
+                ->set(destination: 'uri.0.uuid',        value: \Ramsey\Uuid\Uuid::uuid4()->toString());
+        }
+
+        $profile = $transform->toArray($jwt_claims) ?? [];
+        // TODO log data to shadow profile
         if ($jwt_claims['sub'])  {
             $data["c_uuid"]     = $this->db->func('uuid_to_bin(?, true)', [$jwt_claims['sub']]);
             $data["c_profile"]  = json_encode($profile);
-            $data["c_account"]  = json_encode($account);
-            $data["c_email"]  = $jwt_claims['email'] ?? 'NULL';
-            $data["c_nick"]  = $jwt_claims['preferred_username'] ?? 'NULL';
+            $data["c_attr"]     = json_encode($attr);
+            $data["c_email"]    = $jwt_claims['email'] ?? 'NULL';
+            $data["c_handle"]   = $jwt_claims['preferred_username'] ?? 'NULL';
             // catch exception here
+
+            $domain_uuid = \Ramsey\Uuid\Uuid::uuid4()->toString();
+            $q = '
+                INSERT INTO `t_core_domains` (`c_uuid`, `c_primary_owner`, `c_json`, `c_ts_created`, `c_ts_modified`) 
+                SELECT uuid_to_bin(?, true), uuid_to_bin(?, true), ?, now(), now() -- no parentheses!
+                FROM DUAL -- DUAL is a built-in table with one row
+                WHERE NOT EXISTS ( select 1 from t_core_domains limit 1 );';
+            $this->db->rawQuery($q, [
+                $domain_uuid,
+                $jwt_claims['sub'],
+                json_encode( [
+                    'uuid' => $domain_uuid,
+                    'name' => 'Main',
+                    'ownership' => [
+                        [
+                            '_sub' => $jwt_claims['sub'],
+                            '_iat' => time(),
+                            '_primary' => 1
+                        ]
+                    ],
+                ])
+            ]);
             return $this->db->insert('t_core_users', $data);
         }
+        
+        
+        
+        
         return false;
     }
 
