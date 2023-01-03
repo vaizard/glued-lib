@@ -34,8 +34,8 @@ class ComposerHooks
         $ret    = [];
         $routes = [];
         $seed   = [
-            'rootpath' => __ROOT__,
-            'uservice' => basename(__ROOT__)
+            'ROOTPATH' => __ROOT__,
+            'USERVICE' => basename(__ROOT__)
         ];
         if (!isset($_ENV['GLUED_PROD'])) {
             $dotenv = Dotenv::createImmutable(__ROOT__);
@@ -43,9 +43,9 @@ class ComposerHooks
         }
 
         $hostnames = php_uname('n').' '.gethostbyname(php_uname('n')).' '.($_SERVER['SERVER_NAME'] ?? '');
-        (!isset($_ENV['hostname']) or $_ENV['hostname']=="") && die('[FAIL] hostname env variable not set or is empty. Suggestions: ' .$hostnames . PHP_EOL . PHP_EOL);
-        (!isset($_ENV['datapath'])) && die('[FAIL] datapath env variable not set.' . PHP_EOL . PHP_EOL);
-        (!isset($_ENV['identity'])) && die('[FAIL] identity env variable not set.' . PHP_EOL . PHP_EOL);
+        (!isset($_ENV['HOSTNAME']) or $_ENV['HOSTNAME']=="") && die('[FAIL] hostname env variable not set or is empty. Suggestions: ' .$hostnames . PHP_EOL . PHP_EOL);
+        (!isset($_ENV['DATAPATH'])) && die('[FAIL] datapath env variable not set.' . PHP_EOL . PHP_EOL);
+        (!isset($_ENV['IDENTITY'])) && die('[FAIL] identity env variable not set.' . PHP_EOL . PHP_EOL);
         $refs['env'] = array_merge($seed, $_ENV);
 
 
@@ -56,8 +56,8 @@ class ComposerHooks
         // Load and parse the default yaml config.
         $config  = [];
         $files   = [];
-        $files[] = __ROOT__ . '/glued/Config/defaults.yaml';
-        $files   = array_merge($files, glob($refs['env']['datapath'] . '/*/config/*.yaml'));
+        $files[] = __ROOT__ . '/vendor/vaizard/glued-lib/src/defaults.yaml';
+        $files   = array_merge($files, glob($refs['env']['DATAPATH'] . '/*/config/*.yaml'));
 
         foreach ($files as $file) {
             $yaml = file_get_contents($file);
@@ -167,10 +167,10 @@ class ComposerHooks
             $dotenv = Dotenv::createImmutable(__ROOT__);
             $dotenv->safeLoad();
         }
-        (!isset($_ENV['datapath'])) && die('[FAIL] datapath env variable not set' . PHP_EOL . PHP_EOL);
-        (!isset($_ENV['identity'])) && die('[FAIL] identity env variable not set' . PHP_EOL . PHP_EOL);
-        $paths[] = $_ENV['datapath'].'/'.basename(__ROOT__).'/cache/psr16';
-        $paths[] = $_ENV['datapath'].'/'.basename(__ROOT__).'/cache/geoip';
+        (!isset($_ENV['DATAPATH'])) && die('[FAIL] datapath env variable not set' . PHP_EOL . PHP_EOL);
+        (!isset($_ENV['IDENTITY'])) && die('[FAIL] identity env variable not set' . PHP_EOL . PHP_EOL);
+        $paths[] = $_ENV['DATAPATH'].'/'.basename(__ROOT__).'/cache/psr16';
+        $paths[] = $_ENV['DATAPATH'].'/'.basename(__ROOT__).'/cache/geoip';
 
         // Writable paths
         echo "[INFO] Ensuring paths exist and are writable" . PHP_EOL;
@@ -188,10 +188,10 @@ class ComposerHooks
         // MYSQL
         echo "[INFO] Ensuring MySQL connection works fine" . PHP_EOL;
         $link = mysqli_connect(
-            $_ENV['mysql_hostname'],
-            $_ENV['mysql_username'],
-            $_ENV['mysql_password'],
-            $_ENV['mysql_database']
+            $_ENV['MYSQL_HOSTNAME'],
+            $_ENV['MYSQL_USERNAME'],
+            $_ENV['MYSQL_PASSWORD'],
+            $_ENV['MYSQL_DATABASE']
         );
         if (!$link) {
             echo "[FAIL] Unable to connect to MySQL." . PHP_EOL;
@@ -204,11 +204,11 @@ class ComposerHooks
 
         // Geolite2
         echo "[INFO] Setting up geoip" . PHP_EOL;
-        if (key_exists('geoip', $_ENV) and ($_ENV['geoip']!="")) {
+        if (key_exists('GEOIP', $_ENV) and ($_ENV['GEOIP']!="")) {
             echo "[INFO] Getting geolite2 database ..." . PHP_EOL;
-            $data_uri = 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key='.$_ENV['geoip'].'&suffix=tar.gz';
-            $hash_uri = 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key='.$_ENV['geoip'].'&suffix=tar.gz.sha256';
-            $data_file = $_ENV['datapath'].'/'.basename(__ROOT__).'/cache/geoip/maxmind-geolite2-city.mmdb.tar.gz';
+            $data_uri = 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key='.$_ENV['GEOIP'].'&suffix=tar.gz';
+            $hash_uri = 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key='.$_ENV['GEOIP'].'&suffix=tar.gz.sha256';
+            $data_file = $_ENV['DATAPATH'].'/'.basename(__ROOT__).'/cache/geoip/maxmind-geolite2-city.mmdb.tar.gz';
             $hash_file = $data_file . '.sha256';
             $hash_dist = '';
 
@@ -250,7 +250,7 @@ class ComposerHooks
                             if (strpos(basename((string)$child), $pattern) !== false) {
                                 // get the relative path within the archive (i.e. GeoLite2-Country_20200609/GeoLite2-Country.mmdb)
                                 $relpath = str_replace(basename($data_file) . '/', '', strstr((string)$child, basename($data_file)));
-                                $basedir = $_ENV['datapath'].'/'.basename(__ROOT__).'/cache/geoip/';
+                                $basedir = $_ENV['DATAPATH'].'/'.basename(__ROOT__).'/cache/geoip/';
                                 $phar->extractTo($basedir, $relpath, true);
                                 copy($basedir . $relpath, $basedir . str_replace('.tar.gz', '', basename($data_file)));
                                 unlink($basedir . $relpath);
