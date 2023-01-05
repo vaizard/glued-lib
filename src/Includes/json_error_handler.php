@@ -11,10 +11,10 @@ return function ($exception, $inspector) {
     $short        = (string) array_pop($short);
     $r['hint']    = "No hints, sorry.";
     $http         = '500 Internal Server Error';
-
+    
     if ($short == "AuthJwtException")       { $http = '401 Unauthorized'; $r['hint'] = "Login at ".$settings['oidc']['uri']['login']; }
     if ($short == "AuthTokenException")     { $http = '401 Unauthorized'; $r['hint'] = "Login at ".$settings['oidc']['uri']['login']; }
-    if ($short == "HttpNotFoundException")  { $http = '404 Not fond'; }
+    if ($short == "HttpNotFoundException")  { $http = '404 Not fond'; $r['hint'] = "Try: " . $container->get('settings')['glued']['protocol'].$container->get('settings')['glued']['hostname'].$container->get('routecollector')->getRouteParser()->UrlFor('be_core_routes_v1'); }
     if ($r['title'] == "mysqli_sql_exception") {
         $container->get('logger')->error("EXCEPTION HANDLER", [ "SQL query" => $container->get('db')->getLastQuery(), "Exception" => $r ]);
         $r['hint'] = "Query logged.";

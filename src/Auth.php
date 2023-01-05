@@ -205,6 +205,41 @@ class Auth
         return false;
     }
 
+
+
+    public function adddomain(string $name, string $primary_owner, $create_domain_if_none_exists = false) : mixed
+    {
+        $domain_uuid = \Ramsey\Uuid\Uuid::uuid4()->toString();
+        $part_insert = '
+                INSERT INTO `t_core_domains` (`c_uuid`, `c_primary_owner`, `c_json`, `c_ts_created`, `c_ts_modified`) 
+                SELECT uuid_to_bin(?, true), uuid_to_bin(?, true), ?, now(), now() -- no parentheses!
+                FROM DUAL -- DUAL is a built-in table with one row
+        ';
+        $part_if_none_exists = '
+                WHERE NOT EXISTS ( select 1 from `t_core_domains` limit 1 );
+        ';
+
+        $json['uuid'] = $domain_uuid;
+        $json['ownership'] = [
+            '_sub' => $primary_owner,
+            '_iat' => time(),
+            '_primary' => 1
+        ];
+
+        if ($create_domain_if_none_exists) {
+            $q = $part_insert . $part_if_none_exists;
+            $json['name'] = "Root";
+            $json['_root'] = 1;
+        }
+        else {
+            $q = $part_insert;
+            if ($name == "") { $json['name'] = "Domain ".substr($domain_uuid, -4); }
+            else { $json['name'] = $name; }
+        }
+
+        return $this->db->rawQuery($q, [$domain_uuid, $primary_owner, json_encode($json)]);
+    }
+
     /**
      * @param array $jwt_claims
      * @return bool
@@ -242,8 +277,8 @@ class Auth
                 ->map(destination: 'email.0._iss', source: 'iss')
                 ->set(destination: 'email.0._iat', value: time())
                 ->map(destination: 'email.0._sub', source: 'sub')
-                ->set(destination: 'email.0._primary', value: 1);
-                ->set(destination: 'email.0.uuid', value: \Ramsey\Uuid\Uuid::uuid4()->toString())
+                ->set(destination: 'email.0._primary', value: 1)
+                ->set(destination: 'email.0.uuid', value: \Ramsey\Uuid\Uuid::uuid4()->toString());
         }
 
         if (array_key_exists('website', $jwt_claims) and $jwt_claims['website'] != "") {
@@ -264,35 +299,9 @@ class Auth
             $data["c_attr"]     = json_encode($attr);
             $data["c_email"]    = $jwt_claims['email'] ?? 'NULL';
             $data["c_handle"]   = $jwt_claims['preferred_username'] ?? 'NULL';
-            // catch exception here
-
-            $domain_uuid = \Ramsey\Uuid\Uuid::uuid4()->toString();
-            $q = '
-                INSERT INTO `t_core_domains` (`c_uuid`, `c_primary_owner`, `c_json`, `c_ts_created`, `c_ts_modified`) 
-                SELECT uuid_to_bin(?, true), uuid_to_bin(?, true), ?, now(), now() -- no parentheses!
-                FROM DUAL -- DUAL is a built-in table with one row
-                WHERE NOT EXISTS ( select 1 from t_core_domains limit 1 );';
-            $this->db->rawQuery($q, [
-                $domain_uuid,
-                $jwt_claims['sub'],
-                json_encode( [
-                    'uuid' => $domain_uuid,
-                    'name' => 'Main',
-                    'ownership' => [
-                        [
-                            '_sub' => $jwt_claims['sub'],
-                            '_iat' => time(),
-                            '_primary' => 1
-                        ]
-                    ],
-                ])
-            ]);
+            $domain = $this->adddomain(name: 'Root', primary_owner: $jwt_claims['sub'], create_domain_if_none_exists: true);
             return $this->db->insert('t_core_users', $data);
         }
-        
-        
-        
-        
         return false;
     }
 
