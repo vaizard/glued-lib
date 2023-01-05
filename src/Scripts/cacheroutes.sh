@@ -7,7 +7,7 @@ source "$DIR/loadenv.sh"
 echo "[INFO] rebuilding service routes cache"
 
 if [ -f "glued/Config/routes.yaml" ]; then
-  cp -r glued/Config/routes.yaml "${datapath}/$(basename `pwd`)/cache/routes.yaml";
+  cp -r glued/Config/routes.yaml "${DATAPATH}/$(basename `pwd`)/cache/routes.yaml";
   echo "[PASS] routes rebuilt."
   echo ""
 else

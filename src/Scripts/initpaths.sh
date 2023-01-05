@@ -5,23 +5,23 @@ source "$DIR/loadenv.sh"
 source "$DIR/loadenv.sh"
 
 # microservice's backups
-mkdir -p "${datapath}/$(basename `pwd`)/backups";
+mkdir -p "${DATAPATH}/$(basename `pwd`)/backups";
 
 # microservice's config patches
-mkdir -p "${datapath}/$(basename `pwd`)/config";
-chown www-data:www-data "${datapath}/$(basename `pwd`)/config"
+mkdir -p "${DATAPATH}/$(basename `pwd`)/config";
+chown www-data:www-data "${DATAPATH}/$(basename `pwd`)/config"
 
 # microservice's buildtime and runtime caches
-mkdir -p "${datapath}/$(basename `pwd`)/cache";
-chown www-data:www-data "${datapath}/$(basename `pwd`)/cache"
+mkdir -p "${DATAPATH}/$(basename `pwd`)/cache";
+chown www-data:www-data "${DATAPATH}/$(basename `pwd`)/cache"
 
 # microservice's 'shared folder' interface
-mkdir -p "${datapath}/$(basename `pwd`)/share";
-chmod 777 "${datapath}/$(basename `pwd`)/share"
+mkdir -p "${DATAPATH}/$(basename `pwd`)/share";
+chmod 777 "${DATAPATH}/$(basename `pwd`)/share"
 
 # microservice's own data (outside the database)
-mkdir -p "${datapath}/$(basename `pwd`)/data";
-chown www-data:www-data "${datapath}/$(basename `pwd`)/data"
+mkdir -p "${DATAPATH}/$(basename `pwd`)/data";
+chown www-data:www-data "${DATAPATH}/$(basename `pwd`)/data"
 
 echo "[PASS] datapaths exist"
 

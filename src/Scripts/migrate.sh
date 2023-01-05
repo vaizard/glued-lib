@@ -10,12 +10,12 @@ source "$DIR/loadenv.sh"
 
 #echo $DATABASE_URL
 
-if ! mysql -u $mysql_username -p"${mysql_password}" -h ${mysql_hostname} -e "use $mysql_database"; then
-  echo "[WARN] Connecting to database $mysql_database failed."
+if ! mysql -u $MYSQL_USERNAME -p"${MYSQL_PASSWORD}" -h ${MYSQL_HOSTNAME} -e "use $MYSQL_DATABASE"; then
+  echo "[WARN] Connecting to database $MYSQL_DATABASE failed."
   echo "[INFO] Attempting to create database and assign privileges.";
-  mysql -e "CREATE DATABASE $mysql_database /*\!40100 DEFAULT CHARACTER SET utf8 */;"
-  mysql -e "CREATE USER $mysql_username@$mysql_hostname IDENTIFIED BY '$mysql_password';"
-  mysql -e "GRANT ALL PRIVILEGES ON glued.* TO '$mysql_username'@'$mysql_hostname';"
+  mysql -e "CREATE DATABASE $MYSQL_DATABASE /*\!40100 DEFAULT CHARACTER SET utf8 */;"
+  mysql -e "CREATE USER $MYSQL_USERNAME@$MYSQL_HOSTNAME IDENTIFIED BY '$MYSQL_PASSWORD';"
+  mysql -e "GRANT ALL PRIVILEGES ON glued.* TO '$MYSQL_USERNAME'@'$MYSQL_HOSTNAME';"
   mysql -e "FLUSH PRIVILEGES;"
   exit;
 fi
@@ -23,8 +23,8 @@ fi
 
 for dir in $(find ./glued/Config/Migrations -not -empty -type d) ; do 
   # DEBUG:
-  #echo "dbmate -d ${dir} -s ${datapath}/$(basename `pwd`)/schema.sql migrate"
-  dbmate -d "${dir}" -s "${datapath}/$(basename `pwd`)/schema.sql" migrate;
+  #echo "dbmate -d ${dir} -s ${DATAPATH}/$(basename `pwd`)/schema.sql migrate"
+  dbmate -d "${dir}" -s "${DATAPATH}/$(basename `pwd`)/schema.sql" migrate;
 done;
 
 echo "[PASS] migrated"
