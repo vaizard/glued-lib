@@ -329,7 +329,7 @@ class Utils
     /// APACHE MIME to FILEEXT lookup
     ////////////////////////////////////////////////////////////////////
 
-    public $mime_filext = [
+    public $mime2ext = [
         "application/andrew-inset" => ["ez"],
         "application/applixware" => ["aw"],
         "application/atom+xml" => ["atom"],
