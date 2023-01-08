@@ -196,6 +196,19 @@ class Auth
         ]);
     }
 
+
+    // call with domains() to get them all
+    // domains(["c_column1", $something], ["c_column2", $somethingelse]) to filter (AND logic applies)
+    public function domains(...$params) :? array {
+        foreach ($params as $p) {
+            $this->db->where($p[0], $p[1]);
+        }
+        return $this->db->get("t_core_domains", null, [
+            "BIN_TO_UUID(`c_uuid`) AS `c_uuid`", "BIN_TO_UUID(`c_primary_owner`) AS `c_primary_owner`", "`c_json`"
+        ]);
+    }
+
+
     public function getuser(string $uuid) : mixed {
         $user = $this->users([ 
             'c_uuid = uuid_to_bin(?, true)', [ $uuid ]
@@ -204,6 +217,8 @@ class Auth
         if (!empty($user)) return $user[0];
         return false;
     }
+
+
 
 
 
