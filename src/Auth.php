@@ -252,6 +252,7 @@ class Auth
             else { $json['name'] = $name; }
         }
 
+        $this->logger->debug( 'lib.auth.addomain', [ $name, $primary_owner, $create_domain_if_none_exists ]);
         return $this->db->rawQuery($q, [$domain_uuid, $primary_owner, json_encode($json)]);
     }
 
