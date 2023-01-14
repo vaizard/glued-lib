@@ -274,37 +274,45 @@ class Auth
             ->map(destination: 'service.0._iss',    source: 'iss')
             ->set(destination: 'service.0._iat',     value: time())
             ->map(destination: 'service.0._sub',    source: 'sub')
+            ->set(destination: 'service.0._s',       value: 'service')
+            ->set(destination: 'service.0._v',       value: 1)
             ->set(destination: 'service.0.uuid',     value: \Ramsey\Uuid\Uuid::uuid4()->toString());
 
         if (array_key_exists('name', $jwt_claims) and $jwt_claims['email'] != "") {
             $transform
-                ->map(destination: 'name.0.value', source: 'name')
-                ->map(destination: 'name.0.given', source: 'given_name')
+                ->map(destination: 'name.0.value',  source: 'name')
+                ->map(destination: 'name.0.given',  source: 'given_name')
                 ->map(destination: 'name.0.family', source: 'family_name')
-                ->map(destination: 'name.0._iss', source: 'iss')
-                ->set(destination: 'name.0._iat', value: time())
-                ->map(destination: 'name.0._sub', source: 'sub')
-                ->set(destination: 'name.0.uuid', value: \Ramsey\Uuid\Uuid::uuid4()->toString());
+                ->map(destination: 'name.0._iss',   source: 'iss')
+                ->set(destination: 'name.0._iat',    value: time())
+                ->map(destination: 'name.0._sub',   source: 'sub')
+                ->set(destination: 'name.0._s',      value: 'name')
+                ->set(destination: 'name.0._v',      value: 1)
+                ->set(destination: 'name.0.uuid',    value: \Ramsey\Uuid\Uuid::uuid4()->toString());
         }
 
         if (array_key_exists('email', $jwt_claims) and $jwt_claims['email'] != "") {
             $transform
-                ->map(destination: 'email.0.value', source: 'email')
-                ->map(destination: 'email.0._iss', source: 'iss')
-                ->set(destination: 'email.0._iat', value: time())
-                ->map(destination: 'email.0._sub', source: 'sub')
+                ->map(destination: 'email.0.value',   source: 'email')
+                ->map(destination: 'email.0._iss',    source: 'iss')
+                ->set(destination: 'email.0._iat',     value: time())
+                ->map(destination: 'email.0._sub',    source: 'sub')
                 ->set(destination: 'email.0._primary', value: 1)
-                ->set(destination: 'email.0.uuid', value: \Ramsey\Uuid\Uuid::uuid4()->toString());
+                ->set(destination: 'email.0._s',       value: 'email')
+                ->set(destination: 'email.0._v',       value: 1)
+                ->set(destination: 'email.0.uuid',     value: \Ramsey\Uuid\Uuid::uuid4()->toString());
         }
 
         if (array_key_exists('website', $jwt_claims) and $jwt_claims['website'] != "") {
             $transform
-                ->map(destination: 'uri.0.value',      source: 'website')
-                ->set(destination: 'uri.0.kind',        value: 'website')
-                ->map(destination: 'uri.0._iss',       source: 'iss')
-                ->set(destination: 'uri.0._iat',        value: time())
-                ->map(destination: 'uri.0._sub',       source: 'sub')
-                ->set(destination: 'uri.0.uuid',        value: \Ramsey\Uuid\Uuid::uuid4()->toString());
+                ->map(destination: 'uri.0.value',    source: 'website')
+                ->set(destination: 'uri.0.kind',      value: 'website')
+                ->map(destination: 'uri.0._iss',     source: 'iss')
+                ->set(destination: 'uri.0._iat',      value: time())
+                ->map(destination: 'uri.0._sub',     source: 'sub')
+                ->set(destination: 'uri.0._s',        value: 'uri')
+                ->set(destination: 'uri.0._v',        value: 1)
+                ->set(destination: 'uri.0.uuid',      value: \Ramsey\Uuid\Uuid::uuid4()->toString());
         }
 
         $profile = $transform->toArray($jwt_claims) ?? [];
