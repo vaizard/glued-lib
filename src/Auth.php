@@ -278,7 +278,7 @@ class Auth
 
         if (array_key_exists('name', $jwt_claims) and $jwt_claims['email'] != "") {
             $transform
-                ->map(destination: 'name.0.fn', source: 'name')
+                ->map(destination: 'name.0.value', source: 'name')
                 ->map(destination: 'name.0.given', source: 'given_name')
                 ->map(destination: 'name.0.family', source: 'family_name')
                 ->map(destination: 'name.0._iss', source: 'iss')
