@@ -18,6 +18,11 @@ class QuerySelect implements QueryInterface
     /**
      * @var array<string>
      */
+    private $hconditions = [];
+
+    /**
+     * @var array<string>
+     */
     private $order = [];
 
     /**
@@ -57,6 +62,7 @@ class QuerySelect implements QueryInterface
             . ($this->leftJoin === [] ? '' : ' LEFT JOIN '. implode(' LEFT JOIN ', $this->leftJoin))
             . ($this->innerJoin === [] ? '' : ' INNER JOIN '. implode(' INNER JOIN ', $this->innerJoin))
             . ($this->conditions === [] ? '' : ' WHERE ' . implode(' AND ', $this->conditions))
+            . ($this->hconditions === [] ? '' : ' HAVING ' . implode(' AND ', $this->conditions))
             . ($this->order === [] ? '' : ' ORDER BY ' . implode(', ', $this->order))
             . ($this->limit === null ? '' : ' LIMIT ' . $this->limit);
     }
@@ -65,6 +71,14 @@ class QuerySelect implements QueryInterface
     {
         foreach ($where as $arg) {
             $this->conditions[] = $arg;
+        }
+        return $this;
+    }
+
+    public function having(string ...$where): self
+    {
+        foreach ($where as $arg) {
+            $this->hconditions[] = $arg;
         }
         return $this;
     }
