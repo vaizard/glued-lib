@@ -295,7 +295,7 @@ class Utils
         $meta['timestamp'] = microtime();
         $meta['code']      = 200;
         $meta['message']   = 'OK';
-        $meta = json_encode($meta, JSON_FORCE_OBJECT);
+        $meta = json_encode($meta, JSON_UNESCAPED_SLASHES);
         $meta = mb_substr($meta, 0, -1);
 
         // get the json from a json_arrayagg() response
