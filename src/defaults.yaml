@@ -24,45 +24,19 @@ sqlsrv:
     password:   ${env.SQLSRV_PASSWORD}
 
 stor:
-    targets:
-      - name:       'Minio'
-        online:     false
-        adapter:    's3'
-        version:    'latest'
-        endpoint:   'http://localhost:9000'
-        region:     'us-east-1'
-        bucket:     'some-bucket'
-        access-key: 'access-key'
-        secret-key: 'secret-key'
-        path-style: true
-      - name:       'btrfs-1'
-        dscr:       'local btrfs raid 1'
-        online:     false
+    devices:
+      - name:       'default'
+        dscr:       'default/fallback filesystem storage (path is resolved automatically)'
+        enabled:    true
         adapter:    'filesystem'
-        filesystem: 'btrfs'
         version:    'latest'
-        path:       ${glued.datapath}
-      - name:       'btrfs-2'
-        dscr:       'local btrfs backup drive'
-        online:     false
+        path:       ~
+      - name:       'tmp'
+        dscr:       'temporary storage (path is resolved automatically)'
+        enabled:    true
         adapter:    'filesystem'
-        filesystem: 'btrfs'
         version:    'latest'
-        path:       '/opt/backups'
-      - name:       'NAS'
-        dscr:       'NAS on NFS'
-        online:     false
-        adapter:    'filesystem'
-        filesystem: 'nfs'
-        version:    'latest'
-        path:       '/mnt/nas'
-      - name:       'Backup'
-        dscr:       'Remote btrfs on nas for snapshot send backups over ssh'
-        online:     false
-        adapter:    'btrfs-send'
-        filesystem: 'btrfs'
-        version:    'latest'
-        ssh:        'user@remote -P 2022'
+        path:       ~
 
 logger:
     name:       ${glued.uservice}
