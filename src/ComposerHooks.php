@@ -84,6 +84,10 @@ class ComposerHooks
         print_r(self::getSettings());
     }
 
+    public static function generatePHPFPM(): void {
+        // Stub for feature compatibility
+    }
+
     public static function generateNginx(): void {
         $settings = self::getSettings();
         $comment = <<<EOT
