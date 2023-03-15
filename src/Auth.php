@@ -9,7 +9,21 @@ use Glued\Lib\Exceptions\AuthOidcException;
 use Glued\Lib\Exceptions\AuthJwtException;
 use Glued\Lib\Exceptions\DbException;
 use Glued\Lib\Exceptions\InternalException;
+use Jose\Component\Checker\AlgorithmChecker;
+use Jose\Component\Checker\ClaimCheckerManager;
+use Jose\Component\Checker\ExpirationTimeChecker;
+use Jose\Component\Checker\HeaderCheckerManager;
+use Jose\Component\Checker\IssuedAtChecker;
+use Jose\Component\Checker\IssuerChecker;
+use Jose\Component\Checker\NotBeforeChecker;
+use Jose\Component\Core\AlgorithmManager;
 use Jose\Component\Core\JWK;
+use Jose\Component\Signature\Algorithm\RS256;
+use Jose\Component\Signature\Algorithm\RS512;
+use Jose\Component\Signature\JWSTokenSupport;
+use Jose\Component\Signature\JWSVerifier;
+use Jose\Component\Signature\Serializer\CompactSerializer;
+use Jose\Component\Signature\Serializer\JWSSerializerManager;
 use Jose\Easy\Load;
 use Jose\Component\Core\JWKSet;
 use Selective\Transformer\ArrayTransformer;
@@ -154,7 +168,7 @@ class Auth
         throw new AuthTokenException("Token not found.");
     }
 
-    public function decode_token($accesstoken, $certs) {
+    public function decode_token_old($accesstoken, $certs) {
         try {
             $oidc = $this->settings['oidc'];
             $jwt = Load::jws($accesstoken)   // Load and verify the token in $accesstoken
@@ -170,7 +184,52 @@ class Auth
         } catch (\Exception $e) { throw new AuthJwtException($e->getMessage(), $e->getCode(), $e); }
         return $decoded;
     }
-   
+
+    public function decode_token($accesstoken, $certs) {
+        try {
+            $oidc = $this->settings['oidc'];
+            $decoded = [];
+
+            // Instantiate the algorithm manager with required algorithms
+            $jwsVerifier = new JWSVerifier(new AlgorithmManager([
+                new RS256(),
+                new RS512(),
+            ]));
+
+            // Instantiate ClaimCheckerManager with the required constraints
+            $claimCheckerManager = new ClaimCheckerManager([
+                new IssuedAtChecker(1000),
+                new NotBeforeChecker(1000),
+                new ExpirationTimeChecker(),
+                new IssuerChecker([ $oidc['uri']['realm'] ])
+            ]);
+
+            // Set up the HeaderCheckerManager with required algorithms
+            $headerCheckerManager = new HeaderCheckerManager(
+                [ new AlgorithmChecker(['RS256', 'RS512']) ],
+                [ new JWSTokenSupport() ]
+            );
+
+            // Load the JWS (signature) and JWK (keys). NOTE that multiple signatures are supported for reasons explained here
+            // https://stackoverflow.com/questions/50031985/what-is-a-use-case-for-having-multiple-signatures-in-a-jws-that-uses-jws-json-se
+            // For simplicity, we intentionally pick the first signature (signatureIndex 0). This probably has security implications.
+            $jwsSerializerManager = new JWSSerializerManager([ new CompactSerializer() ]);
+            $jws = $jwsSerializerManager->unserialize($accesstoken);
+            $jwk = new JWKSet($certs);
+            $r['claims'] = json_decode($jws->getPayload(), true) ?? [];
+            $r['headers'] = $jws->getSignature(0)->getProtectedHeader();
+            $r['signatures'] = $jws->countSignatures();
+
+            // Check stuff
+            if (!$jwsVerifier->verifyWithKeySet($jws, $jwk, 0)) {
+                throw new \Exception('Token signature verification failed');
+            }
+            $headerCheckerManager->check($jws, 0, ['alg', 'typ', 'kid']);
+            $claimCheckerManager->check($r['claims'], ['iss', 'sub', 'aud', 'exp']);
+        } catch (\Exception $e) { throw new AuthJwtException($e->getMessage(), $e->getCode(), $e); }
+        return $r;
+    }
+
     //////////////////////////////////////////////////////////////////////////
     // OTHER AUTH RELATED METHODS ////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////////

@@ -16,10 +16,10 @@
 		"paragonie/csp-builder": "^2.6",
 		"selective/transformer": "^1",
 		"slim/slim": "^4",
-		"symfony/yaml": "^5",
+		"symfony/yaml": "^6",
 		"vlucas/phpdotenv": "^5",
 		"voku/anti-xss": "^4",
-		"web-token/jwt-framework": "^2.2"
+		"web-token/jwt-framework": "^3"
 	},
 	"require-dev": {
 		"ergebnis/composer-normalize": "^2"

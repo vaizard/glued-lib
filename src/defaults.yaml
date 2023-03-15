@@ -24,19 +24,32 @@ sqlsrv:
     password:   ${env.SQLSRV_PASSWORD}
 
 stor:
+    dgs:
+        66bf39ed-3913-4985-a775-ef3c87cfaee4:
+            label:      'local'
+            comment:    'default devices group'
+            default:    true
+        1c8964ab-b60e-4407-bc06-309faabd4db8:
     devices:
-      - name:       'default'
-        dscr:       'default/fallback filesystem storage (path is resolved automatically)'
-        enabled:    true
-        adapter:    'filesystem'
-        version:    'latest'
-        path:       ~
-      - name:       'tmp'
-        dscr:       'temporary storage (path is resolved automatically)'
-        enabled:    true
-        adapter:    'filesystem'
-        version:    'latest'
-        path:       ~
+      # DEFAULTS
+        09e0ef57-86e6-4376-b466-a7d2af31474e:
+            label:      'datadir'
+            comment:    'default/fallback filesystem storage (path is resolved automatically)'
+            enabled:    true
+            adapter:    'filesystem'
+            version:    'latest'
+            path:       ~
+            dg:         66bf39ed-3913-4985-a775-ef3c87cfaee4
+            default:    true
+        86159ff5-f513-4852-bb3a-7f4657a35301:
+            label:      'tmpdir'
+            comment:    'temporary storage (path is resolved automatically)'
+            enabled:    true
+            adapter:    'filesystem'
+            version:    'latest'
+            dg:         ~
+            path:       ~
+
 
 logger:
     name:       ${glued.uservice}
