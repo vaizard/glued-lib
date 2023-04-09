@@ -209,7 +209,7 @@ notify:
             dst:
                 - 
             config:
-                src: @MyBot
+                src: '@MyBot'
         email:
             channels:
                 - name: E-mail (smtp)

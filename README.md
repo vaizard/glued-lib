@@ -32,7 +32,7 @@ notify:
                 - '111111111'
                 - '222222222'
             config:
-                src: @MyTelegramBot
+                src: '@MyTelegramBot'
         email:
             channels:
                 - name: E-mail (smtp)
