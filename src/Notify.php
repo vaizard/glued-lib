@@ -88,30 +88,29 @@ class Notify
 
     public function send(string $content, string $subject = 'Glued notification', bool $notify_admins = false)
     {
-        $c = $this->settings['network'];
         if ($notify_admins === true) {
-            $c = array_merge_recursive($c, $this->getadmins());
+            $this->settings = array_merge_recursive($this->settings, $this->getadmins());
         }
         $chat = new ChatMessage($content);
         $push = new PushMessage($subject, $content);
         $mail = (new Email())
-            ->from($c['email']['config']['src'])
+            ->from($this->settings['network']['email']['config']['src'])
             ->subject($subject)
             ->text($content);
 
-        foreach ($c as $type => $network) {
+        foreach ($this->settings['network'] as $type => $network) {
             // ===========================================================
             // Channels requiring a separate transport for every recipient
             // ===========================================================
             if ($type == 'telegram') {
                 $success = false; // Flag to help iterate over all provided channel DSNs
-                foreach ($c[$type]['channels'] as $channel) {
+                foreach ($this->settings['network'][$type]['channels'] as $channel) {
                     try {
                         foreach ($network['dst'] as $key => $dst) {
                             $dsn = new NotifierDsn($channel['dsn'] . $dst);
                             $transport = (new TelegramTransportFactory)->create($dsn);
                             $transport->send($chat);
-                            unset($c[$type]['dst'][$key]); // On successful send remove destination (recipient)
+                            unset($this->settings['network'][$type]['dst'][$key]); // On successful send remove destination (recipient)
                         }
                         $success = true;
                         break; // Exit the loop if the email was sent successfully with current DSN
@@ -130,14 +129,14 @@ class Notify
             // ===========================================================
             elseif ($type == 'email') {
                 $success = false; // Flag to help iterate over all provided channel DSNs
-                foreach ($c[$type]['channels'] as $channel) {
+                foreach ($this->settings['network'][$type]['channels'] as $channel) {
                     $dsn = MailerDsn::fromString($channel['dsn']);
                     try {
                         $transport = (new EsmtpTransportFactory)->create($dsn);
                         foreach ($network['dst'] as $key => $dst) {
-                            $envelope = new Envelope(new Address($c[$type]['config']['src']), [new Address($dst)]);
+                            $envelope = new Envelope(new Address($this->settings['network'][$type]['config']['src']), [new Address($dst)]);
                             $transport->send(new RawMessage($mail->to($dst)->toString()), $envelope);
-                            unset($c[$type]['dst'][$key]); // On successful send remove destination (recipient)
+                            unset($this->settings['network'][$type]['dst'][$key]); // On successful send remove destination (recipient)
                         }
                         $success = true;
                         break; // Exit the loop if the email was sent successfully with current DSN
