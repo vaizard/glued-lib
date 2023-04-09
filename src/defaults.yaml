@@ -199,3 +199,22 @@ oidc:
         secure:     "Secure;"   # String terminated by a `;`
         path:       "/;"        # String terminated by a `;`
     cookie_params: SameSite=${oidc.cookie_param.samesite} ${oidc.cookie_param.secure} Path=${oidc.cookie_param.path};
+
+notify:
+    network:
+        telegram:
+            channels:
+                - name: Telegram
+                  dsn:
+            dst:
+                - 
+            config:
+                src: @MyBot
+        email:
+            channels:
+                - name: E-mail (smtp)
+                  dsn: 
+            config:
+                src: 
+            dst:
+                - 
