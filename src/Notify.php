@@ -90,7 +90,7 @@ class Notify
     {
         $c = $this->settings['network'];
         if ($notify_admins === true) {
-            $this->settings['network'] = array_merge_recursive($this->settings['network'], $this->getadmins());
+            $c = array_merge_recursive($c, $this->getadmins());
         }
         $chat = new ChatMessage($content);
         $push = new PushMessage($subject, $content);
