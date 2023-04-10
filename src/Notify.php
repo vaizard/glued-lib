@@ -89,8 +89,12 @@ class Notify
     public function send(string $content, string $subject = 'Glued notification', bool $notify_admins = false)
     {
         if ($notify_admins === true) {
-            $this->settings = array_merge_recursive($this->settings, $this->getadmins());
+            $r = $this->getadmins();
+            foreach ($this->settings['network'] as $channel => &$config) {
+                $config['dst'] = array_unique(array_merge($config['dst'] ?? [], $r[$channel]));
+            }
         }
+
         $chat = new ChatMessage($content);
         $push = new PushMessage($subject, $content);
         $mail = (new Email())
