@@ -8,6 +8,7 @@ glued:
     rootpath: ${env.ROOTPATH}
     uservice: ${env.USERVICE}
     datapath: ${env.DATAPATH}
+    frontend: ${glued.protocol}${glued.hostname}:3000
 
 db:
     host:       ${env.MYSQL_HOSTNAME}
@@ -189,8 +190,8 @@ oidc:
         logout:     ${oidc.uri.realm}/protocol/openid-connect/logout
         jwks:       ${oidc.uri.realm}/protocol/openid-connect/certs
         discovery:  ${oidc.uri.realm}/.well-known/openid-configuration
-        redirect:   http://localhost:3000   # TODO use routes here
-        login:      http://localhost:3000   # TODO use routes here
+        redirect:   ${glued.frontend}
+        login:      ${glued.frontend}
     header: Authorization
     regexp: '/Bearer\s+(.*)$/i'
     cookie: token
