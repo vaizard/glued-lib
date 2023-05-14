@@ -7,6 +7,8 @@ source "$DIR/loadenv.sh"
 # NOTE that double sourcing is needed
 # otherwise .env references won't be interpreted
 
+echo [INFO] Database URL: $DATABASE_URL
+
 if ! mysql -u $MYSQL_USERNAME -p"${MYSQL_PASSWORD}" -h ${MYSQL_HOSTNAME} -e "use $MYSQL_DATABASE"; then
   echo "[WARN] Connecting to database $MYSQL_DATABASE failed."
   echo "[INFO] Attempting to create database and assign privileges.";
@@ -17,8 +19,4 @@ if ! mysql -u $MYSQL_USERNAME -p"${MYSQL_PASSWORD}" -h ${MYSQL_HOSTNAME} -e "use
   exit;
 fi
 
-for dir in $(find ./glued/Config/Migrations -not -empty -type d) ; do 
-  dbmate -d "${dir}" -s "${DATAPATH}/$(basename `pwd`)/schema.sql" migrate;
-done;
-
-echo "[PASS] migrated"
+echo [PASS] Database connection OK

@@ -17,8 +17,5 @@ if ! mysql -u $MYSQL_USERNAME -p"${MYSQL_PASSWORD}" -h ${MYSQL_HOSTNAME} -e "use
   exit;
 fi
 
-for dir in $(find ./glued/Config/Migrations -not -empty -type d) ; do 
-  dbmate -d "${dir}" -s "${DATAPATH}/$(basename `pwd`)/schema.sql" migrate;
-done;
-
-echo "[PASS] migrated"
+dir="$(find ./glued/Config/Migrations -not -empty -type d)"
+dbmate -d ${dir} -s ${DATAPATH}/$(basename `pwd`)/schema.sql dump;
