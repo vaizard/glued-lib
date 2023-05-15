@@ -7,12 +7,12 @@
 		"library"
 	],
 	"require": {
-		"php": "^8.1",
+		"php": "^8.2",
 		"ext-bcmath": "*",
 		"ext-curl": "*",
 		"ext-json": "*",
 		"grasmash/yaml-expander": "^3",
-		"monolog/monolog": "^2",
+		"monolog/monolog": "^3",
 		"paragonie/csp-builder": "^2.6",
 		"selective/transformer": "^1",
 		"slim/slim": "^4",
