@@ -41,6 +41,10 @@ class Auth
     protected $db;
     protected $logger;
     protected $events;
+    protected $e;
+    protected $m;
+    protected $fscache;
+    protected $utils;
 
     public function __construct($settings, $db, $logger, $events, $enforcer, $fscache, $utils) {
         $this->db = $db;
