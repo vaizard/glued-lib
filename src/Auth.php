@@ -172,23 +172,6 @@ class Auth
         throw new AuthTokenException("Token not found.");
     }
 
-    public function decode_token_old($accesstoken, $certs) {
-        try {
-            $oidc = $this->settings['oidc'];
-            $jwt = Load::jws($accesstoken)   // Load and verify the token in $accesstoken
-                ->algs(['RS256', 'RS512'])   // Check if allowed The algorithms are used
-                ->exp()                      // Check if "exp" claim is present
-                ->iat(1000)                  // Check if "iat" claim is present and within 1000ms leeway
-                ->nbf(1000)                  // Check if "nbf" claim is present and within 1000ms leeway
-                ->iss($oidc['uri']['realm']) // Check if "nbf" claim is present and matches the realm
-                ->keyset(new JWKSet($certs)) // Key used to verify the signature
-                ->run();                     // Do it.
-            $decoded['claims'] = $jwt->claims->all() ?? [];
-            $decoded['header'] = $jwt->header->all() ?? [];
-        } catch (\Exception $e) { throw new AuthJwtException($e->getMessage(), $e->getCode(), $e); }
-        return $decoded;
-    }
-
     public function decode_token($accesstoken, $certs) {
         try {
             $oidc = $this->settings['oidc'];
