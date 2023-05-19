@@ -5,7 +5,6 @@ namespace Glued\Lib;
 use Exception;
 use Psr\Http\Message\ResponseInterface as Response;
 use Slim\Routing\RouteContext;
-use Glued\Lib\Exceptions\DbException;
 
 class Utils
 {
@@ -22,7 +21,7 @@ class Utils
 
 
     ////////////////////////////////////////////////////////////////////
-    // ARRAYS MANIPULTAION                                            //
+    // ARRAYS MANIPULATION                                            //
     ////////////////////////////////////////////////////////////////////
 
     public function array_unflatten($collection) {

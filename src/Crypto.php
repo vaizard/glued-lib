@@ -5,6 +5,7 @@ namespace Glued\Lib;
 class Crypto
 {
 
+    protected $base64_variant;
     public function __construct() {
         $this->base64_variant = SODIUM_BASE64_VARIANT_URLSAFE;
     }

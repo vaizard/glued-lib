@@ -30,10 +30,10 @@ use Symfony\Component\Mailer\Envelope;
 class Notify
 {
 
-    protected $recipients;
+    protected $users;
     protected $settings;
     protected $logger;
-    protected $adminDsts;
+    protected $admins;
 
     public function __construct($settings, $logger)
     {
