@@ -36,7 +36,6 @@ use Selective\Transformer\ArrayTransformer;
 
 class Auth
 {
-
     protected $settings;
     protected $db;
     protected $logger;
@@ -117,24 +116,24 @@ class Auth
         }
 
         if (!$hit) {
-            $json = (string) $this->utils->fetch_uri($oidc['uri']['discovery']) ?? ''; 
+            $json = (string) $this->utils->fetch_uri($oidc['uri']['discovery']) ?? '';
             $conf = (array) json_decode($json);
-            if ($conf == []) throw new AuthOidcException('Identity server connection failure, please reload this page.');
-            if ($conf['issuer'] != $oidc['uri']['realm']) throw new AuthOidcException('Identity server configuration mismatch.');
+            if ($conf == []) { throw new AuthOidcException('Identity server connection failure, please reload this page.'); }
+            if ($conf['issuer'] != $oidc['uri']['realm']) { throw new AuthOidcException('Identity server configuration mismatch.'); }
             $this->fscache->set('glued_oidc_uri_discovery', $json, 300); // TODO make the 300s value configurable
         }
 
         $hit = $this->fscache->has('glued_oidc_uri_jwks');
         if ($hit) {
             $conf = (array) json_decode($this->fscache->get('glued_oidc_uri_jwks')) ?? [];
-            if (!isset($jwks['keys'])) $hit = false;
+            if (!isset($jwks['keys'])) { $hit = false; }
         }
 
         if (!$hit) {
             $json = (string) $this->utils->fetch_uri($oidc['uri']['jwks']) ?? '';
             $jwks = (array) json_decode($json) ?? [];
-            if ($conf == []) throw new AuthOidcException('Identity server connection failure, please reload this page.');
-            if (!isset($jwks['keys'])) throw new AuthOidcException('Identity server certificate mismatch.');
+            if ($conf == []) { throw new AuthOidcException('Identity server connection failure, please reload this page.'); }
+            if (!isset($jwks['keys'])) { throw new AuthOidcException('Identity server certificate mismatch.'); }
             $this->fscache->set('glued_oidc_uri_jwks', $json, 300); // TODO make the 300s value configurable
         }
 
@@ -152,7 +151,6 @@ class Auth
         $header = $request->getHeaderLine($this->settings['oidc']["header"]);
         if (false === empty($header)) {
             if (preg_match($this->settings['oidc']["regexp"], $header, $matches)) {
-                //$this->log(LogLevel::DEBUG, "Using token from request header");
                 return $matches[1];
             }
         }
@@ -160,15 +158,12 @@ class Auth
         // Token not found in header, try the cookie.
         $cookieParams = $request->getCookieParams();
         if (isset($cookieParams[$this->settings['oidc']['cookie']])) {
-            //$this->log(LogLevel::DEBUG, "Using token from cookie");
             if (preg_match($this->settings['oidc']["regexp"], $cookieParams[$this->settings['oidc']['cookie']], $matches)) {
                 return $matches[1];
             }
             return $cookieParams[$this->settings['oidc']["cookie"]];
         };
 
-        // If everything fails log and throw.
-        //$this->log(LogLevel::WARNING, "Token not found");
         throw new AuthTokenException("Token not found.");
     }
 
@@ -312,7 +307,9 @@ class Auth
 
         // else add user
         $attr['locale'] = $this->utils->get_default_locale($jwt_claims['locale'] ?? 'en') ?? 'en_US';
-        $attr['enabled'] = 1;
+        $attr['status']['active'] = 1;
+        $attr['status']['flag']['suspended'] = 0;
+
         $transform = new ArrayTransformer();
         $transform
             ->map(destination: 'service.0.uri',     source: 'iss')
