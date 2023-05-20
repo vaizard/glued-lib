@@ -312,6 +312,7 @@ class Auth
 
         // else add user
         $attr['locale'] = $this->utils->get_default_locale($jwt_claims['locale'] ?? 'en') ?? 'en_US';
+        $attr['enabled'] = 1;
         $transform = new ArrayTransformer();
         $transform
             ->map(destination: 'service.0.uri',     source: 'iss')
