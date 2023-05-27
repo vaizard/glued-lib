@@ -18,7 +18,7 @@ if ! mysql -u $MYSQL_USERNAME -p"${MYSQL_PASSWORD}" -h ${MYSQL_HOSTNAME} -e "use
 fi
 
 if [ -n "${1}" ]; then
-  dir="$(find ./glued/Config/Migrations -not -empty -type d)"
+  dir="$(find ./glued/Config/Migrations -type d)"
   dbmate -d ${dir} -s ${datapath}/$(basename `pwd`)/schema.sql new "${1}";
   echo "[PASS] Empty migration file ${1} generated, add relevant up/down statements. To get the \`CREATE TABLE\` statements, use \`migrate-dump\` and cherry-pick what you need."
 else
