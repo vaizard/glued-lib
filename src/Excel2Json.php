@@ -33,7 +33,7 @@ class Excel2Json
      * @param $sheetName
      * @return false|string (json)
      */
-    private function excelToArray($filePath, $sheetName): array {
+    private function excel2array($filePath, $sheetName): array {
         $spreadsheet = IOFactory::load($filePath);
         $sheetData = $spreadsheet->getSheetByName($sheetName)->toArray(null, true, true, true);
 
@@ -103,8 +103,8 @@ class Excel2Json
         return $result;
     }
 
-    private function excelToJson($filePath, $sheetName): string {
-        $res = $this->excelToArray($filePath, $sheetName) ?? [];
+    private function excel2json($filePath, $sheetName): string {
+        $res = $this->excel2array($filePath, $sheetName) ?? [];
         return json_encode($res) ?? '';
     }
 
