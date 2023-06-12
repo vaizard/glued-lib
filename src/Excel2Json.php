@@ -34,7 +34,9 @@ class Excel2Json
      * @return false|string (json)
      */
     public function excel2array($filePath, $sheetName): array {
-        $spreadsheet = IOFactory::load($filePath);
+        $reader = IOFactory::createReader('Xlsx');
+        $reader->setReadDataOnly(true);
+        $spreadsheet = $reader->load($filePath);
         $sheetData = $spreadsheet->getSheetByName($sheetName)->toArray(null, true, true, true);
 
         // fill $jsonPath AS $jsonPath[$column][$path]

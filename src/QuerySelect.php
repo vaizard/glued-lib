@@ -58,7 +58,7 @@ class QuerySelect implements QueryInterface
 
     public function __toString(): string
     {
-        return $this->query
+        return 'SELECT FROM ' . $this->query
             . ($this->leftJoin === [] ? '' : ' LEFT JOIN '. implode(' LEFT JOIN ', $this->leftJoin))
             . ($this->innerJoin === [] ? '' : ' INNER JOIN '. implode(' INNER JOIN ', $this->innerJoin))
             . ($this->conditions === [] ? '' : ' WHERE ' . implode(' AND ', $this->conditions))
