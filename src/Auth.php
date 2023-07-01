@@ -240,6 +240,26 @@ class Auth
         return $result;
     }
 
+    function generate_api_token($userUuid, mixed $expiry = null): string
+    {
+        // Generate a random string for the API key, prefix it
+        $apiKey = $this->settings['glued']['apitoken'] . $this->crypto->genkey_base64();
+
+        // $expiry can be either `null` (token valid forever) or
+        // a `string` (datetime or relative time distance such as '+30 days')
+        // strings will be converted to a datetime format.
+        if (!is_null($expiry)) {
+            $expiry = date('Y-m-d H:i:s', strtotime($expiry);
+        }
+
+        // Store the API key in the database
+        $query = "INSERT INTO t_core_api_keys (c_user_uuid, c_api_key, c_expiry_date) VALUES (uuid_to_bin(?,true), ?, ?)";
+        $params = [$userUuid, $apiKey, $expiry];
+        $this->db->rawQuery($query, $params);
+
+        return $apiKey;
+    }
+
     //////////////////////////////////////////////////////////////////////////
     // OTHER AUTH RELATED METHODS ////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////////
