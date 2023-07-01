@@ -167,7 +167,7 @@ class Auth
         throw new AuthTokenException("Token not found.");
     }
 
-    public function decode_token($accesstoken, $certs) {
+    public function validate_jwt_token($accesstoken, $certs) {
         try {
             $oidc = $this->settings['oidc'];
             $decoded = [];
@@ -210,6 +210,34 @@ class Auth
             $claimCheckerManager->check($r['claims'], ['iss', 'sub', 'aud', 'exp']);
         } catch (\Exception $e) { throw new AuthJwtException($e->getMessage(), $e->getCode(), $e); }
         return $r;
+    }
+
+    function validate_api_token($apiKey): mixed
+    {
+        // Disregard tokens not starting with the `apitoken` prefix
+        $apiKey = (string) $apiKey;
+        if (!$apiKey || (!str_starts_with($apiKey, $this->settings['glued']['apitoken']))) {
+            return false; // If the prefix doesn't match, the API key is invalid
+        }
+
+        // Execute a query to check if the API key exists and is valid
+        $query = "
+            SELECT 
+              bin_to_uuid(ak.c_uuid, true) as apikey_uuid,
+              bin_to_uuid(ak.c_user_uuid, true) as user_uuid,
+              u.c_handle as user_handle
+            FROM t_core_api_keys AS ak
+            LEFT JOIN t_core_users AS u ON ak.c_user_uuid = u.c_uuid
+            WHERE ak.c_api_key = ? AND ak.c_expiry_date >= NOW() AND u.c_active = 1
+        ";
+        $params = [$apiKey];
+
+        // Get the result of the query (number of matching rows)
+        $result = $this->db->rawQuery($query, $params); // Get the result of the query
+        if (empty($result)) { return false;  }
+        // If the result is greater than 0, the API key is valid
+        return $result;
+        // TODO add unique on apikey
     }
 
     //////////////////////////////////////////////////////////////////////////
