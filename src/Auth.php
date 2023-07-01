@@ -217,7 +217,7 @@ class Auth
         // Disregard tokens not starting with the `apitoken` prefix
         $apiKey = (string) $apiKey;
         if (!$apiKey || (!str_starts_with($apiKey, $this->settings['glued']['apitoken']))) {
-            return false; // If the prefix doesn't match, the API key is invalid
+            throw new AuthJwtException('Provided token is not an API token.', 400);
         }
 
         // Execute a query to check if the API key exists and is valid
@@ -234,10 +234,10 @@ class Auth
 
         // Get the result of the query (number of matching rows)
         $result = $this->db->rawQuery($query, $params); // Get the result of the query
-        if (empty($result)) { return false;  }
-        // If the result is greater than 0, the API key is valid
+        if (empty($result)) {
+            throw new AuthJwtException('Invalid / revoked API token provided', 401);
+        }
         return $result;
-        // TODO add unique on apikey
     }
 
     //////////////////////////////////////////////////////////////////////////
