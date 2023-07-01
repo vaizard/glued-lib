@@ -7,8 +7,6 @@ namespace Glued\Lib;
 use Glued\Lib\Exceptions\AuthTokenException;
 use Glued\Lib\Exceptions\AuthOidcException;
 use Glued\Lib\Exceptions\AuthJwtException;
-use Glued\Lib\Exceptions\DbException;
-use Glued\Lib\Exceptions\InternalException;
 use Jose\Component\Checker\AlgorithmChecker;
 use Jose\Component\Checker\ClaimCheckerManager;
 use Jose\Component\Checker\ExpirationTimeChecker;
@@ -27,7 +25,7 @@ use Jose\Component\Signature\Serializer\JWSSerializerManager;
 use Jose\Easy\Load;
 use Jose\Component\Core\JWKSet;
 use Selective\Transformer\ArrayTransformer;
-
+use \Ramsey\Uuid\Uuid;
 
 
 /**
@@ -44,8 +42,9 @@ class Auth
     protected $m;
     protected $fscache;
     protected $utils;
+    protected $crypto;
 
-    public function __construct($settings, $db, $logger, $events, $enforcer, $fscache, $utils) {
+    public function __construct($settings, $db, $logger, $events, $enforcer, $fscache, $utils, $crypto) {
         $this->db = $db;
         $this->settings = $settings;
         $this->logger = $logger;
@@ -54,6 +53,7 @@ class Auth
         $this->m = $this->e->getModel();
         $this->fscache = $fscache;
         $this->utils = $utils;
+        $this->crypto = $crypto;
     }
 
     //////////////////////////////////////////////////////////////////////////
@@ -228,7 +228,9 @@ class Auth
               u.c_handle as user_handle
             FROM t_core_api_keys AS ak
             LEFT JOIN t_core_users AS u ON ak.c_user_uuid = u.c_uuid
-            WHERE ak.c_api_key = ? AND IFNULL(ak.c_expiry_date,NOW()+42) >= NOW()ak.c_expiry_date >= NOW() AND u.c_active = 1
+            WHERE ak.c_api_key = ?
+            AND IFNULL(ak.c_expiry_date,NOW()+42) >= NOW()
+            AND u.c_active = 1
         ";
         $params = [$apiKey];
 
@@ -249,7 +251,7 @@ class Auth
         // a `string` (datetime or relative time distance such as '+30 days')
         // strings will be converted to a datetime format.
         if (!is_null($expiry)) {
-            $expiry = date('Y-m-d H:i:s', strtotime($expiry);
+            $expiry = date('Y-m-d H:i:s', strtotime($expiry));
         }
 
         // Store the API key in the database
