@@ -228,7 +228,7 @@ class Auth
               u.c_handle as user_handle
             FROM t_core_api_keys AS ak
             LEFT JOIN t_core_users AS u ON ak.c_user_uuid = u.c_uuid
-            WHERE ak.c_api_key = ? AND ak.c_expiry_date >= NOW() AND u.c_active = 1
+            WHERE ak.c_api_key = ? AND IFNULL(ak.c_expiry_date,NOW()+42) >= NOW()ak.c_expiry_date >= NOW() AND u.c_active = 1
         ";
         $params = [$apiKey];
 
