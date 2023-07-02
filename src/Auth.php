@@ -223,13 +223,13 @@ class Auth
         // Execute a query to check if the API key exists and is valid
         $query = "
             SELECT 
-              bin_to_uuid(ak.c_uuid, true) as apikey_uuid,
-              bin_to_uuid(ak.c_user_uuid, true) as user_uuid,
+              bin_to_uuid(tok.c_uuid, true) as token_uuid,
+              bin_to_uuid(tok.c_user_uuid, true) as user_uuid,
               u.c_handle as user_handle
-            FROM t_core_api_keys AS ak
-            LEFT JOIN t_core_users AS u ON ak.c_user_uuid = u.c_uuid
-            WHERE ak.c_api_key = ?
-            AND IFNULL(ak.c_expiry_date,NOW()+42) >= (NOW()+0)
+            FROM t_core_tokens AS tok
+            LEFT JOIN t_core_users AS u ON tok.c_inherit = u.c_uuid
+            WHERE tok.c_token = ?
+            AND IFNULL(tok.c_expired_at,NOW()+42) >= (NOW()+0)
             AND u.c_active = 1
         ";
         $params = [$apiKey];
@@ -255,9 +255,10 @@ class Auth
         }
 
         // Store the API key in the database
-        $query = "INSERT INTO t_core_api_keys (c_user_uuid, c_api_key, c_expiry_date) VALUES (uuid_to_bin(?,true), ?, ?)";
+        $query = "INSERT INTO t_core_tokens (c_inherit, c_token, c_expired_at) VALUES (uuid_to_bin(?,true), ?, ?)";
         $params = [$userUuid, $apiKey, $expiry];
-        $this->db->rawQuery($query, $params);
+        $res = $this->db->rawQuery($query, $params);
+        if ($res) $this->events->emit('core.auth.token.created', [$res]);
 
         return $apiKey;
     }
@@ -267,14 +268,6 @@ class Auth
     //////////////////////////////////////////////////////////////////////////
 
 
-
-    public function safeAddPolicy(object $e, object $m, string $section, string $type, array $rule) {
-        if (!$m->hasPolicy($section, $type, $rule)) {
-            $m->addPolicy($section, $type, $rule);  
-            $e->savePolicy();
-        }
-    }
-
     // call with users() to get them all
     // users(["c_column1", $something], ["c_column2", $somethingelse]) to filter (AND logic applies)
     // see getuser() for an example
@@ -283,7 +276,7 @@ class Auth
               $this->db->where($p[0], $p[1]);
         }
         return $this->db->get("t_core_users", null, [
-            "BIN_TO_UUID(`c_uuid`) AS `c_uuid`", "c_profile", "c_attr", "c_locale", "c_handle", "c_email", "c_ts_created", "c_ts_modified", "c_stor_name"
+            "BIN_TO_UUID(`c_uuid`) AS `c_uuid`", "c_profile", "c_attr", "c_locale", "c_handle", "c_email", "c_ts_created", "c_ts_updated", "c_stor_name"
         ]);
     }
 
@@ -295,7 +288,7 @@ class Auth
             $this->db->where($p[0], $p[1]);
         }
         return $this->db->get("t_core_domains", null, [
-            "BIN_TO_UUID(`c_uuid`) AS `c_uuid`", "BIN_TO_UUID(`c_primary_owner`) AS `c_primary_owner`", "`c_json`"
+            "BIN_TO_UUID(`c_uuid`) AS `c_uuid`", "BIN_TO_UUID(`c_primary_owner`) AS `c_primary_owner`", "`c_attr`"
         ]);
     }
 
@@ -310,14 +303,21 @@ class Auth
     }
 
 
-
+    public function addrole(string $name, string $description): mixed
+    {
+        $q = "INSERT INTO `t_core_roles` (`c_name`, `c_dscr`) VALUES (?, ?)";
+        $this->logger->debug( 'lib.auth.addrole', [ $name, $description ]);
+        $res = $this->db->rawQuery($q, [$name, $description]);
+        if ($res) $this->events->emit('core.auth.role.created', [$res]);
+        return $res;
+    }
 
 
     public function adddomain(string $name, string $primary_owner, $create_domain_if_none_exists = false) : mixed
     {
         $domain_uuid = \Ramsey\Uuid\Uuid::uuid4()->toString();
         $part_insert = '
-                INSERT INTO `t_core_domains` (`c_uuid`, `c_primary_owner`, `c_json`, `c_ts_created`, `c_ts_modified`) 
+                INSERT INTO `t_core_domains` (`c_uuid`, `c_primary_owner`, `c_attr`, `c_ts_created`, `c_ts_updated`) 
                 SELECT uuid_to_bin(?, true), uuid_to_bin(?, true), ?, now(), now() -- no parentheses!
                 FROM DUAL -- DUAL is a built-in table with one row
         ';
@@ -334,7 +334,7 @@ class Auth
 
         if ($create_domain_if_none_exists) {
             $q = $part_insert . $part_if_none_exists;
-            $json['name'] = "Root";
+            $json['name'] = "System";
             $json['_root'] = 1;
         }
         else {
@@ -344,7 +344,9 @@ class Auth
         }
 
         $this->logger->debug( 'lib.auth.addomain', [ $name, $primary_owner, $create_domain_if_none_exists ]);
-        return $this->db->rawQuery($q, [$domain_uuid, $primary_owner, json_encode($json)]);
+        $res = $this->db->rawQuery($q, [$domain_uuid, $primary_owner, json_encode($json)]);
+        if ($res) $this->events->emit('core.auth.domain.created', [$res]);
+        return $res;
     }
 
     /**
@@ -418,7 +420,9 @@ class Auth
             $data["c_email"]    = $jwt_claims['email'] ?? 'NULL';
             $data["c_handle"]   = $jwt_claims['preferred_username'] ?? 'NULL';
             $domain = $this->adddomain(name: 'Root', primary_owner: $jwt_claims['sub'], create_domain_if_none_exists: true);
-            return $this->db->insert('t_core_users', $data);
+            $res = $this->db->insert('t_core_users', $data);
+            if ($res) $this->events->emit('core.auth.user.created', [$res]);
+            return $res;
         }
         return false;
     }
