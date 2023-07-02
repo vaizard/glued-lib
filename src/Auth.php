@@ -307,7 +307,7 @@ class Auth
     public function addrole(string $name, string $description): mixed
     {
         $q = "INSERT INTO `t_core_roles` (`c_uuid`, `c_name`, `c_dscr`) VALUES (uuid_to_bin(?, true), ?, ?)";
-        $qp = [Uuid::uuid4()->toString(), $name, $description];
+        $qp = [ "uuid" => Uuid::uuid4()->toString(), "name" => $name, "description" => $description ];
         $this->logger->debug( 'lib.auth.addrole', $qp);
         $res = $this->db->rawQuery($q, $qp);
         if ($res) { $this->events->emit('core.auth.role.created', $qp); }
