@@ -306,11 +306,12 @@ class Auth
 
     public function addrole(string $name, string $description): mixed
     {
-        $q = "INSERT INTO `t_core_roles` (`c_name`, `c_dscr`) VALUES (?, ?)";
-        $this->logger->debug( 'lib.auth.addrole', [ $name, $description ]);
-        $res = $this->db->rawQuery($q, [$name, $description]);
-        if ($res) $this->events->emit('core.auth.role.created', [$res]);
-        return $res;
+        $q = "INSERT INTO `t_core_roles` (`c_uuid`, `c_name`, `c_dscr`) VALUES (uuid_to_bin(?, true), ?, ?)";
+        $qp = [Uuid::uuid4()->toString(), $name, $description];
+        $this->logger->debug( 'lib.auth.addrole', $qp);
+        $res = $this->db->rawQuery($q, $qp);
+        if ($res) { $this->events->emit('core.auth.role.created', $qp); }
+        return $qp;
     }
 
 
