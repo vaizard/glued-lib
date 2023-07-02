@@ -255,6 +255,7 @@ class Auth
         }
 
         // Store the API key in the database
+        $this->logger->debug( 'lib.auth.addtoken', [ $apiKey, $expiry, $userUuid ]);
         $query = "INSERT INTO t_core_tokens (c_inherit, c_token, c_expired_at) VALUES (uuid_to_bin(?,true), ?, ?)";
         $params = [$userUuid, $apiKey, $expiry];
         $res = $this->db->rawQuery($query, $params);
