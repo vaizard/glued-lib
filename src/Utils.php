@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace Glued\Lib;
 
 use Exception;
+use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Message\ResponseInterface as Response;
 use Slim\Routing\RouteContext;
 
@@ -308,14 +309,31 @@ class Utils
         return $response->withBody($body)->withStatus(200)->withHeader('Content-Type', 'application/json');
     }
 
-    public function getOrigQueryParams($request) {
-        $str = $request->getUri()->getQuery();
-        $pairs = explode('&', $str);
+    /**
+     * A method replacing SlimPHP's $request->getQueryParams(), which mangles url parameters
+     * due to improper usage of the urldecode() function and PHP not dropping the now unused URL mangling
+     * @param Request $request
+     * @return array
+     */
+    public function getQueryParams(Request $request): array
+    {
         $output = [];
+        $str = $request->getUri()->getQuery();
+        if (empty($str)) { return $output; }
+
+        $pairs = explode('&', $str);
         foreach ($pairs as $pair) {
+            // Skip pairs that don't contain the '=' sign
+            if (strpos($pair, '=') === false) { continue; }
+
             list($key, $value) = explode('=', $pair, 2);
             $key = urldecode($key);
             $value = urldecode($value);
+
+            // Handle special characters in key and value
+            $key = htmlspecialchars($key, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $value = htmlspecialchars($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
             $output[$key] = $value;
         }
         return $output;
