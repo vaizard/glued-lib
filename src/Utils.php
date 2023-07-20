@@ -308,6 +308,20 @@ class Utils
         return $response->withBody($body)->withStatus(200)->withHeader('Content-Type', 'application/json');
     }
 
+    public function getOrigQueryParams($request) {
+        $str = $request->getUri()->getQuery();
+        $pairs = explode('&', $str);
+        $output = [];
+        foreach ($pairs as $pair) {
+            list($key, $value) = explode('=', $pair, 2);
+            $key = urldecode($key);
+            $value = urldecode($value);
+            $output[$key] = $value;
+        }
+        return $output;
+    }
+
+
 
 
     ////////////////////////////////////////////////////////////////////
