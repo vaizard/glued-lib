@@ -330,10 +330,6 @@ class Utils
             $key = urldecode($key);
             $value = urldecode($value);
 
-            // Handle special characters in key and value
-            $key = htmlspecialchars($key, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            $value = htmlspecialchars($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-
             $output[$key] = $value;
         }
         return $output;
