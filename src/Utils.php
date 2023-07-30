@@ -408,7 +408,7 @@ class Utils
         });
         $queryParams = array_merge_recursive($queryParams, $override);
         foreach ($queryParams as $param) {
-            $p = $this->mysqli->real_escape_string($param[0]);
+            $p = $this->db->escape($param[0]); // mysqli_real_escape_string() wrapper
             $o = $param[1];
             $v = $param[2];
             $key_first = mb_substr($p,  0, 1, 'UTF-8');
