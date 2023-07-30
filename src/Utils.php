@@ -193,6 +193,7 @@ class Utils
 
     ////////////////////////////////////////////////////////////////////
     // SQL HELPERS                                                    //
+    // TODO deprecate the methods in this section                     //
     ////////////////////////////////////////////////////////////////////
 
     /**
@@ -211,6 +212,7 @@ class Utils
         // ensure key doesn't start or end with _, doesn't contain __,
         // and consists of lowercase alphanumeric characters _, and -.
         if (preg_match("/^(?!_)(?!.*__)[a-z0-9_-]+(?<!_)$/", $path) !== 1) { return false; }
+
 
         // split by _ into elements
         $arr = explode("_", $path);
@@ -309,13 +311,37 @@ class Utils
         return $response->withBody($body)->withStatus(200)->withHeader('Content-Type', 'application/json');
     }
 
+    ////////////////////////////////////////////////////////////////////
+    // QUERY TO SQL HELPERS                                           //
+    //                                                                //
+    // - getQueryParams()                                             //
+    //   replaces slim's getQueryParams() which mangles url param     //
+    //   names the same way as php by default                         //
+    // - mysqlQueryFromRequest()                                      //
+    //   builds sql query (where modifiers) by looking at the first   //
+    //   and last param name character to query a json path, and      //
+    //   comparing with =, <, > or LIKE %%                            //
+    ////////////////////////////////////////////////////////////////////
+
     /**
      * A method replacing SlimPHP's $request->getQueryParams(), which mangles url parameters
-     * due to improper usage of the urldecode() function and PHP not dropping the now unused URL mangling
+     * due to improper usage of the urldecode() function and PHP not dropping the now unused URL mangling.
+     * the resulting query parameters and values are passed in the form of a list of arrays in order
+     * to support multiple parameters with the same name. Additionally, if a parameter name ends with
+     * one of the $operators, the last character of the parameter name is converted to the operator value.
+     * Default operator value is =.
+     * Accordingly,
+     *
      * @param Request $request
-     * @return array
+     * @param array $operators list of supported operators
+     * @return array assumes the form of a list of arrays with the following structure.
+     * [
+     *      [ 'param-a' , 'operator1', 'value1' ] ,
+     *      [ 'param-a' , 'operator2', 'value2' ] ,
+     *      [ 'param-b' , 'operator3', 'value3' ]
+     * ]
      */
-    public function getQueryParams(Request $request): array
+    public function getQueryParams(Request $request, array $operators = ['*', '<', '>']): array
     {
         $output = [];
         $str = $request->getUri()->getQuery();
@@ -324,18 +350,87 @@ class Utils
         $pairs = explode('&', $str);
         foreach ($pairs as $pair) {
             // Skip pairs that don't contain the '=' sign
-            if (strpos($pair, '=') === false) { continue; }
+            if (strpos($pair, '=') === false) {
+                continue;
+            }
 
             list($key, $value) = explode('=', $pair, 2);
             $key = urldecode($key);
             $value = urldecode($value);
 
-            $output[$key] = $value;
+            $operator = "=";
+            $key_last = mb_substr($key, -1, 1, 'UTF-8');
+            if (in_array($key_last, $operators)) {
+                $key = mb_substr($key, 0, -1);
+                $operator = $key_last;
+            }
+
+            $output[] = [$key, $operator, $value];
         }
         return $output;
     }
 
+    /**
+     * mysqlQueryFromRequest() adds a WHERE clause to a base sql query string ($qs) that is generated from
+     * GET query parameters ($queryParams). The method loops through $queryParams' parameter:value pairs and
+     * handles the following cases. If a parameter:
+     *  - starts with a $, it's assumed to be json path within the $inc_json column.
+     *  - ends with <, >, these operators a reused instead of the default = operator.
+     *  - ends with *, the value is enveloped in %% and a LIKE operator is used.
+     * To prevent sql injection, parameter names are escaped with real_escape_string() and matched against a
+     * preg expression (which is different for the column name match and the jsonpath match). Parameter
+     * values are securely handled by preparing statements. To further tighten security and restrict clients
+     * from going crazy with their queries, it is possible to allow only queries with parameter names present
+     * in the $whitelist enum array.
+     *
+     * @param mixed $qs (string and or \Glued\Lib\QueryBuilder class object is allowed)
+     * @param array $queryParams (expected form is $queryParams[] = [ 'name', 'operator', 'value' ] )
+     * @param mixed $inc_json (one json field is supported for querying by jsonpath - passed as string, otherwise false)
+     * @param mixed $whitelist (an enum of allowed queryParams names)
+     * @return string
+     */
 
+    private function mysqlQueryFromRequest( mixed $qs, array &$queryParams = [], mixed $inc_json = false, array $override = [], mixed $whitelist = false ): string
+    {
+        $data = [];
+        if (is_string($qs)) { $qs = (new \Glued\Lib\QueryBuilder())->select($qs); }
+        if (!is_a($qs, 'Glued\Lib\QuerySelect')) { throw new \Exception('Bad qs class or type ('.gettype($qs).').'); }
+        // Remove elements from $queryParams where $queryParams[][0] isn't in the $whitelist.
+        if (($whitelist !== false) && is_array($whitelist)) {
+            $queryParams = array_filter($queryParams, function ($item) use ($whitelist) {
+                return in_array($item[0], $whitelist);
+            });
+        }
+        // Remove elements from $queryParams where $queryParams[][0] matches $override[][0].
+        // Merge $queryParams and $override (enforce that query parameters get overwritten)
+        $queryParams = array_filter($queryParams, function ($item) use ($override) {
+            return !in_array($item[0], array_column($override, 0));
+        });
+        $queryParams = array_merge_recursive($queryParams, $override);
+        foreach ($queryParams as $param) {
+            $p = $this->mysqli->real_escape_string($param[0]);
+            $o = $param[1];
+            $v = $param[2];
+            $key_first = mb_substr($p,  0, 1, 'UTF-8');
+            if (($key_first === '$') && ($inc_json != false)) {
+                if (preg_match('/^\$\.(?!.*\.\.)(?!.*--)(?:[a-zA-Z0-9_-]|\[\d+\]|\.)*$/', $p) !== 1) { throw new \Exception($p . ' doesn\'t match pattern.'); }
+                if ($o === '*') { $op = 'LIKE'; $data[] = '%'.$v.'%'; }
+                elseif ($o === '<') { $op = '<'; $data[] = $v; }
+                elseif ($o === '>') { $op = '>'; $data[] = $v; }
+                else { $op = '='; $data[] = $v; }
+                $p = $inc_json."->>'".$p."'";
+            } else {
+                if (preg_match('/^(?!.*--)[a-zA-Z0-9_-]*$/', $p) !== 1) { throw new \Exception($p . ' doesn\'t match pattern.'); }
+                if ($o === '*') { $op = 'LIKE'; $data[] = '%'.$v.'%'; }
+                elseif ($o === '<') { $op = '<'; $data[] = $v; }
+                elseif ($o === '>') { $op = '>'; $data[] = $v; }
+                else { $op = '='; $data[] = $v; }
+            }
+            $qs->where($p.' '.$op.' ?');
+        }
+        $queryParams = $data;
+        return (string) $qs;
+    }
 
 
     ////////////////////////////////////////////////////////////////////
