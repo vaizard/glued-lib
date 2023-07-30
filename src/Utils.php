@@ -390,7 +390,7 @@ class Utils
      * @return string
      */
 
-    private function mysqlQueryFromRequest( mixed $qs, array &$queryParams = [], mixed $inc_json = false, array $override = [], mixed $whitelist = false ): string
+    public function mysqlQueryFromRequest( mixed $qs, array &$queryParams = [], mixed $inc_json = false, array $override = [], mixed $whitelist = false ): string
     {
         $data = [];
         if (is_string($qs)) { $qs = (new \Glued\Lib\QueryBuilder())->select($qs); }
