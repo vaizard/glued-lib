@@ -1,0 +1,36 @@
+553c553
+<     public function log($level, string|\Stringable $message, array $context = []): void
+---
+>     public function log($level, $message, array $context = []): void
+578c578
+<     public function debug(string|\Stringable $message, array $context = []): void
+---
+>     public function debug($message, array $context = []): void
+591c591
+<     public function info(string|\Stringable $message, array $context = []): void
+---
+>     public function info($message, array $context = []): void
+604c604
+<     public function notice(string|\Stringable $message, array $context = []): void
+---
+>     public function notice($message, array $context = []): void
+617c617
+<     public function warning(string|\Stringable $message, array $context = []): void
+---
+>     public function warning($message, array $context = []): void
+630c630
+<     public function error(string|\Stringable $message, array $context = []): void
+---
+>     public function error($message, array $context = []): void
+643c643
+<     public function critical(string|\Stringable $message, array $context = []): void
+---
+>     public function critical($message, array $context = []): void
+656c656
+<     public function alert(string|\Stringable $message, array $context = []): void
+---
+>     public function alert($message, array $context = []): void
+669c669
+<     public function emergency(string|\Stringable $message, array $context = []): void
+---
+>     public function emergency($message, array $context = []): void
