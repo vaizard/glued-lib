@@ -38,7 +38,7 @@ class Excel2Json
         $reader->setReadDataOnly(true);
         $spreadsheet = $reader->load($filePath);
         $sheet = $spreadsheet->getSheetByName($sheetName);
-        if (is_null($sheet)) { throw new \Exception('Sheet '.$sheet. ' not in file '.$filePath)}
+        if (is_null($sheet)) { throw new \Exception('Sheet '.$sheet. ' not in file '.$filePath); }
         $sheetData = $spreadsheet->getSheetByName($sheetName)->toArray(null, true, true, true);
 
         // fill $jsonPath AS $jsonPath[$column][$path]
