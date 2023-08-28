@@ -277,7 +277,7 @@ class Auth
               $this->db->where($p[0], $p[1]);
         }
         return $this->db->get("t_core_users", null, [
-            "BIN_TO_UUID(`c_uuid`) AS `c_uuid`", "c_profile", "c_attr", "c_locale", "c_handle", "c_email", "c_ts_created", "c_ts_updated", "c_stor_name"
+            "BIN_TO_UUID(`c_uuid`, true) AS `c_uuid`", "c_profile", "c_attr", "c_locale", "c_handle", "c_email", "c_ts_created", "c_ts_updated", "c_stor_name"
         ]);
     }
 
@@ -289,7 +289,7 @@ class Auth
             $this->db->where($p[0], $p[1]);
         }
         return $this->db->get("t_core_domains", null, [
-            "BIN_TO_UUID(`c_uuid`) AS `c_uuid`", "BIN_TO_UUID(`c_primary_owner`) AS `c_primary_owner`", "`c_attr`"
+            "BIN_TO_UUID(`c_uuid`, true) AS `c_uuid`", "BIN_TO_UUID(`c_primary_owner`, true) AS `c_primary_owner`", "`c_attr`"
         ]);
     }
 
