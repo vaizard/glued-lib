@@ -56,7 +56,8 @@ class Excel2Json
             if (!$this->isAllEmptyOrSpaces($row)) {
                 foreach ($row AS $key => $value) {
                     if (substr($jsonPath[$key], -2) === '[]') {
-                        $row[$key] = explode(';', $value ?? ""); // `$value ?? ""` resolves case when $value is null
+                        if ($value == null) { $row[$key] = []; }
+                        else { $row[$key] = explode(';', (string) $value); }
                     }
                 }
                 $filtered[] = $row;
