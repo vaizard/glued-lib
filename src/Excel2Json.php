@@ -82,7 +82,11 @@ class Excel2Json
                             $node[$key] = [];
                         }
                         $node = &$node[$key];
-                        $node[] = $val;
+                        if (!empty($val)) {
+                            $node[] = $val;
+                        } else {
+                            $node[] = [];
+                        }
                     }
                     // if a key starts and ends with square brackets (e.g., [0], [1], etc.),
                     // it's treated AS an unnamed array element
