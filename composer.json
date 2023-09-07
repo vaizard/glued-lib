@@ -12,6 +12,8 @@
 		"ext-curl": "*",
 		"ext-json": "*",
 		"grasmash/yaml-expander": "^3",
+		"middlewares/utils": "^3.0",
+		"psr/http-server-middleware": "^1.0",
 		"monolog/monolog": "^3",
 		"paragonie/csp-builder": "^v2.9.0",
 		"psr/log": "^3",
