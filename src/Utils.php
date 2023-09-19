@@ -301,8 +301,8 @@ class Utils
         $meta = mb_substr($meta, 0, -1);
 
         // get the json from a json_arrayagg() response
-        $key = array_keys($jsondata[0])[0];
-        $jsondata = $jsondata[0][$key];
+        $key = array_keys($jsondata[0])[0] ?? null;
+        $jsondata = $jsondata[0][$key] ?? null;
         if (is_null($jsondata)) { $jsondata = '{}'; }
 
         // write the response body
