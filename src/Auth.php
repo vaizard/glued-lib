@@ -225,7 +225,8 @@ class Auth
             SELECT 
               bin_to_uuid(tok.c_uuid, true) as token_uuid,
               bin_to_uuid(tok.c_user_uuid, true) as user_uuid,
-              u.c_handle as user_handle
+              u.c_handle as user_handle,
+              tok.c_attr as token_attr
             FROM t_core_tokens AS tok
             LEFT JOIN t_core_users AS u ON tok.c_inherit = u.c_uuid
             WHERE tok.c_token = ?
@@ -242,7 +243,7 @@ class Auth
         return $result;
     }
 
-    function generate_api_token($userUuid, mixed $expiry = null): string
+    function generate_api_token($userUuid, mixed $expiry = null, array $attributes = []): string
     {
         // Generate a random string for the API key, prefix it
         $apiKey = $this->settings['glued']['apitoken'] . $this->crypto->genkey_base64();
@@ -255,8 +256,8 @@ class Auth
         }
 
         // Store the API key in the database
-        $this->logger->debug( 'lib.auth.addtoken', [ $apiKey, $expiry, $userUuid ]);
-        $query = "INSERT INTO t_core_tokens (c_inherit, c_token, c_expired_at) VALUES (uuid_to_bin(?,true), ?, ?)";
+        $this->logger->debug( 'lib.auth.addtoken', [ $apiKey, $expiry, $userUuid, json_encode($attributes) ]);
+        $query = "INSERT INTO t_core_tokens (c_inherit, c_token, c_expired_at, c_attr) VALUES (uuid_to_bin(?,true), ?, ?, ?)";
         $params = [$userUuid, $apiKey, $expiry];
         $res = $this->db->rawQuery($query, $params);
         if ($res) $this->events->emit('core.auth.token.created', [$res]);
