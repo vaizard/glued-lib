@@ -256,9 +256,9 @@ class Auth
         }
 
         // Store the API key in the database
-        $this->logger->debug( 'lib.auth.addtoken', [ $apiKey, $expiry, $userUuid, json_encode($attributes) ]);
+        $this->logger->debug( 'lib.auth.addtoken', [ $apiKey, $expiry, $userUuid, json_encode($attributes, JSON_FORCE_OBJECT) ]);
         $query = "INSERT INTO t_core_tokens (c_inherit, c_token, c_expired_at, c_attr) VALUES (uuid_to_bin(?,true), ?, ?, ?)";
-        $params = [$userUuid, $apiKey, $expiry, json_encode($attributes)];
+        $params = [$userUuid, $apiKey, $expiry, json_encode($attributes, JSON_FORCE_OBJECT)];
         $res = $this->db->rawQuery($query, $params);
         if ($res) $this->events->emit('core.auth.token.created', [$res]);
 
