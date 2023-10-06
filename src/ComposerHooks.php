@@ -40,6 +40,8 @@ class ComposerHooks
         if (!isset($_ENV['GLUED_PROD'])) {
             $dotenv = Dotenv::createImmutable(__ROOT__);
             $dotenv->safeLoad();
+        } else {
+            echo "[INFO] GLUED_PROD set in environment or `.env`, ignoring the `.env` file." . PHP_EOL;
         }
 
         $hostnames = php_uname('n').' '.gethostbyname(php_uname('n')).' '.($_SERVER['SERVER_NAME'] ?? '');
