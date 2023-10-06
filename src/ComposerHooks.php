@@ -172,6 +172,8 @@ class ComposerHooks
         if (!isset($_ENV['GLUED_PROD'])) {
             $dotenv = Dotenv::createImmutable(__ROOT__);
             $dotenv->safeLoad();
+        } else {
+            echo "[INFO] GLUED_PROD set in environment or `.env`, ignoring the `.env` file." . PHP_EOL;
         }
         (!isset($_ENV['DATAPATH'])) && die('[FAIL] DATAPATH env variable not set' . PHP_EOL . PHP_EOL);
         (!isset($_ENV['IDENTITY'])) && die('[FAIL] IDENTITY env variable not set' . PHP_EOL . PHP_EOL);
