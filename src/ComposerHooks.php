@@ -44,8 +44,8 @@ class ComposerHooks
 
         $hostnames = php_uname('n').' '.gethostbyname(php_uname('n')).' '.($_SERVER['SERVER_NAME'] ?? '');
         (!isset($_ENV['HOSTNAME']) or $_ENV['HOSTNAME']=="") && die('[FAIL] hostname env variable not set or is empty. Suggestions: ' .$hostnames . PHP_EOL . PHP_EOL);
-        (!isset($_ENV['DATAPATH'])) && die('[FAIL] datapath env variable not set.' . PHP_EOL . PHP_EOL);
-        (!isset($_ENV['IDENTITY'])) && die('[FAIL] identity env variable not set.' . PHP_EOL . PHP_EOL);
+        (!isset($_ENV['DATAPATH'])) && die('[FAIL] DATAPATH env variable not set.' . PHP_EOL . PHP_EOL);
+        (!isset($_ENV['IDENTITY'])) && die('[FAIL] IDENTITY env variable not set.' . PHP_EOL . PHP_EOL);
         $refs['env'] = array_merge($seed, $_ENV);
 
 
@@ -171,8 +171,8 @@ class ComposerHooks
             $dotenv = Dotenv::createImmutable(__ROOT__);
             $dotenv->safeLoad();
         }
-        (!isset($_ENV['DATAPATH'])) && die('[FAIL] datapath env variable not set' . PHP_EOL . PHP_EOL);
-        (!isset($_ENV['IDENTITY'])) && die('[FAIL] identity env variable not set' . PHP_EOL . PHP_EOL);
+        (!isset($_ENV['DATAPATH'])) && die('[FAIL] DATAPATH env variable not set' . PHP_EOL . PHP_EOL);
+        (!isset($_ENV['IDENTITY'])) && die('[FAIL] IDENTITY env variable not set' . PHP_EOL . PHP_EOL);
         $paths[] = $_ENV['DATAPATH'].'/'.basename(__ROOT__).'/cache/psr16';
         $paths[] = $_ENV['DATAPATH'].'/'.basename(__ROOT__).'/cache/geoip';
 

@@ -242,7 +242,7 @@ class Utils
      * a similar variability needs to be represented in the relevant WHERE query subelements.
      * @return void
      */
-    function mysqlJsonQueryFromRequest(array $reqparams, QuerySelect &$qstring, &$qparams, array $wheremods = []) {
+    function mysqlJsonQueryFromRequest(array $reqparams, QuerySelect &$qstring, &$qparams, array $wheremods = [], string $jsonkey = 'c_data') {
 
         // define fallback where modifier for the 'uuid' reqparam.
         if (!array_key_exists('uuid', $wheremods)) {
@@ -260,8 +260,8 @@ class Utils
             // 'some_hypen-path' -> 'some.hypen-path' -> '"some"."hypen-path"'
             $jsonpath = '\"'.str_replace('.', '\".\"', $key).'\"';
             // default where construct that transposes https://server/endpoint?mykey=myval
-            // to sql query substring `where (`c_data`->>'$."mykey"' = ?)`
-            $w = '(`c_data`->>"$.'.$jsonpath.'" = ?)';
+            // to sql query substring `where (`c_data`->>'$."mykey"' = ?)`, if $jsonkey is default
+            $w = '('.$jsonkey.'->>"$.'.$jsonpath.'" = ?)';
 
             foreach ($wheremods as $wmk => $wmv) {
                 if ($key === $wmk) { $w = $wmv; }
