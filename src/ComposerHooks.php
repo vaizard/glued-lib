@@ -131,7 +131,7 @@ class ComposerHooks
             $origins[0] = $settings['nginx']['cors']['origin']; 
         }
 
-        $output  = 'map_hash_bucket_size 256;';
+        $output  = 'map_hash_bucket_size 256;'.PHP_EOL;
         $output .= 'map $http_origin $origin_allowed {'.PHP_EOL;
         $output .= '    default 0;'.PHP_EOL;
         foreach ($origins as $o) {
