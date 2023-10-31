@@ -24,7 +24,7 @@ class IfUtils
         return $run_uuid;
     }
 
-    public function logCheck($act_uuid, $response_hash = null, $response_fid = null): string
+    public function logCheck($act_uuid, $response_hash = null, $response_fid = null): mixed
     {
         $qp = null;
         $qs = "
