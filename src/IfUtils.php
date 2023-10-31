@@ -16,9 +16,9 @@ class IfUtils
         $run_uuid = \Ramsey\Uuid\Uuid::uuid4()->toString();
         $q = "
             INSERT INTO `t_if__logs` 
-                (`c_act_uuid`, `c_uuid`, `c_data`, `c_ts_requested`, `c_ts_responded`, `c_ok`, `c_response_hash`, `c_response_fid`)
+                (`c_act_uuid`, `c_uuid`, `c_data`, `c_ts_requested`, `c_ts_responded`, `c_status`, `c_response_hash`, `c_response_fid`)
                 VALUES 
-                (uuid_to_bin(?, 1), uuid_to_bin(?, 1), '{}', now(), NULL, NULL, NULL, NULL);
+                (uuid_to_bin(?, 1), uuid_to_bin(?, 1), '{}', now(), NULL, 'init', NULL, NULL);
             ";
         $this->db->rawQuery($q, [$act_uuid, $run_uuid]);
         return $run_uuid;
@@ -34,7 +34,7 @@ class IfUtils
                 c_data,
                 c_ts_requested,
                 c_ts_responded,
-                c_ok,
+                c_status,
                 c_response_hash,
                 c_response_fid
             FROM `t_if__logs`
@@ -47,18 +47,19 @@ class IfUtils
     }
 
 
-    public function logResponse($run_uuid, $json = "{}", $ok = 0, $response_hash = '', $response_fid = ''): void
+    public function logResponse($run_uuid, $status, $json = "{}", $response_hash = '', $response_fid = ''): void
     {
+        if (array_key_exists($status, ['fail', 'ok', 'init', 'skip'])) throw new \Exception('Bad run status.');
         $q = "
             UPDATE `t_if__logs` SET
                 `c_data` = ?,
                 `c_ts_responded` = now(),
-                `c_ok` = ?,
+                `c_status` = ?,
                 `c_response_hash` = ?,
                 `c_response_fid` = ?
             WHERE `c_uuid` = uuid_to_bin(?, 1);
             ";
-        $this->db->rawQuery($q, [$json, $ok, $response_hash, $response_fid, $run_uuid]);
+        $this->db->rawQuery($q, [$json, $status, $response_hash, $response_fid, $run_uuid]);
     }
 
 
