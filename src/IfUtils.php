@@ -18,7 +18,7 @@ class IfUtils
             INSERT INTO `t_if__logs` 
                 (`c_act_uuid`, `c_uuid`, `c_data`, `c_ts_requested`, `c_ts_responded`, `c_status`, `c_response_hash`, `c_response_fid`)
                 VALUES 
-                (uuid_to_bin(?, 1), uuid_to_bin(?, 1), '{}', now(), NULL, 'init', NULL, NULL);
+                (uuid_to_bin(?, 1), uuid_to_bin(?, 1), '{}', now(), NULL, 'started', NULL, NULL);
             ";
         $this->db->rawQuery($q, [$act_uuid, $run_uuid]);
         return $run_uuid;
@@ -49,7 +49,7 @@ class IfUtils
 
     public function logResponse($run_uuid, $status, $json = "{}", $response_hash = '', $response_fid = ''): void
     {
-        if (array_key_exists($status, ['fail', 'ok', 'init', 'skip'])) throw new \Exception('Bad run status.');
+        if (array_key_exists($status, ['failed', 'ok', 'started', 'skipped'])) throw new \Exception('Bad run status.');
         $q = "
             UPDATE `t_if__logs` SET
                 `c_data` = ?,
