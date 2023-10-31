@@ -47,7 +47,7 @@ class IfUtils
     }
 
 
-    public function logResponse($run_uuid, $status, $json = "{}", $response_hash = '', $response_fid = ''): void
+    public function logResponse($run_uuid, $status, $data = "{}", $response_hash = '', $response_fid = ''): void
     {
         if (array_key_exists($status, ['failed', 'ok', 'started', 'skipped'])) throw new \Exception('Bad run status.');
         $q = "
@@ -59,7 +59,7 @@ class IfUtils
                 `c_response_fid` = ?
             WHERE `c_uuid` = uuid_to_bin(?, 1);
             ";
-        $this->db->rawQuery($q, [$json, $status, $response_hash, $response_fid, $run_uuid]);
+        $this->db->rawQuery($q, [$data, $status, $response_hash, $response_fid, $run_uuid]);
     }
 
 
