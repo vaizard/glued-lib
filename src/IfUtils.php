@@ -26,7 +26,7 @@ class IfUtils
 
     public function logCheck($act_uuid, $response_hash = null, $response_fid = null): string
     {
-        $qp = [];
+        $qp = null;
         $qs = "
             SELECT 
                 bin_to_uuid(`c_act_uuid`) AS `c_act_uuid`,
