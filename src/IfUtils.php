@@ -11,8 +11,9 @@ class IfUtils
         $this->db = $db;
     }
 
-    public function logRequest($act): void
+    public function logRequest($act_uuid): string
     {
+        $run_uuid = \Ramsey\Uuid\Uuid::uuid4()->toString();
         $q = "
             INSERT INTO `t_if__logs` 
                 (`c_act_uuid`, `c_uuid`, `c_data`, `c_ts_requested`, `c_ts_responded`, `c_ok`, `c_response_hash`, `c_response_fid`)
@@ -20,11 +21,34 @@ class IfUtils
                 (uuid_to_bin(?, 1), uuid_to_bin(?, 1), '{}', now(), NULL, NULL, NULL, NULL);
             ";
         $this->db->rawQuery($q, [$act_uuid, $run_uuid]);
+        return $run_uuid;
     }
 
-    public function logResponse($act, $json = "{}", $ok = 0, $response_hash = '', $response_fid = ''): void
+    public function logCheck($act_uuid, $response_hash = null, $response_fid = null): string
     {
+        $qp = [];
+        $qs = "
+            SELECT 
+                bin_to_uuid(`c_act_uuid`) AS `c_act_uuid`,
+                bin_to_uuid(`c_uuid`) AS `c_uuid`,
+                c_data,
+                c_ts_requested,
+                c_ts_responded,
+                c_ok,
+                c_response_hash,
+                c_response_fid
+            FROM `t_if__logs`
+            ";
+        $qs = (new \Glued\Lib\QueryBuilder())->select($qs);
+        if (!is_null($response_hash)) { $qs->where("c_response_hash = ?"); $qp[] = $response_hash; }
+        if (!is_null($response_fid)) { $qs->where("c_response_fid = ?"); $qp[] = $response_fid; }
+        $r = $this->db->rawQuery((string) $qs, $qp);
+        return $r;
+    }
 
+
+    public function logResponse($run_uuid, $json = "{}", $ok = 0, $response_hash = '', $response_fid = ''): void
+    {
         $q = "
             UPDATE `t_if__logs` SET
                 `c_data` = ?,
