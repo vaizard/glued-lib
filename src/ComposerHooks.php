@@ -62,9 +62,11 @@ class ComposerHooks
         $files   = array_merge($files, glob($refs['env']['DATAPATH'] . '/*/config/*.yaml'));
 
         foreach ($files as $file) {
-            $yaml = file_get_contents($file);
-            $array = $class_sy->parse($yaml, $class_sy::PARSE_CONSTANT);
-            $config = array_replace_recursive($config, $class_ye->expandArrayProperties($array));
+            try {
+                $yaml = file_get_contents($file);
+                $array = $class_sy->parse($yaml, $class_sy::PARSE_CONSTANT);
+                $config = array_replace_recursive($config, $class_ye->expandArrayProperties($array));
+            } catch (\Exception $e) { echo "Problem processing file $file";  print_r($e);
         }
 
         $refs['env'] = array_merge($seed, $_ENV);
@@ -74,11 +76,15 @@ class ComposerHooks
         // Read the routes
         $files = glob($ret['glued']['datapath'] . '/*/cache/routes.yaml');
         foreach ($files as $file) {
-            $yaml = file_get_contents($file);
-            $array = $class_sy->parse($yaml);
-            $routes = array_merge($routes, $class_ye->expandArrayProperties($array)['routes']);
+            try {
+                $yaml = file_get_contents($file);
+                $array = $class_sy->parse($yaml);
+                $routes = array_merge($routes, $class_ye->expandArrayProperties($array)['routes']);
+            } catch (\Exception $e) { echo "Problem processing file $file";  print_r($e);
         }
         $ret['routes'] = $routes;
+
+        }
         return $ret;
     }
 
