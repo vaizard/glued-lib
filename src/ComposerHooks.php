@@ -66,7 +66,7 @@ class ComposerHooks
                 $yaml = file_get_contents($file);
                 $array = $class_sy->parse($yaml, $class_sy::PARSE_CONSTANT);
                 $config = array_replace_recursive($config, $class_ye->expandArrayProperties($array));
-            } catch (\Exception $e) { echo "Problem processing file $file";  print_r($e);
+            } catch (\Exception $e) { echo "Problem processing file $file";  print_r($e); }
         }
 
         $refs['env'] = array_merge($seed, $_ENV);
@@ -80,11 +80,9 @@ class ComposerHooks
                 $yaml = file_get_contents($file);
                 $array = $class_sy->parse($yaml);
                 $routes = array_merge($routes, $class_ye->expandArrayProperties($array)['routes']);
-            } catch (\Exception $e) { echo "Problem processing file $file";  print_r($e);
+            } catch (\Exception $e) { echo "Problem processing file $file";  print_r($e); }
         }
         $ret['routes'] = $routes;
-
-        }
         return $ret;
     }
 
