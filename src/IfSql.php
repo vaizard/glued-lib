@@ -52,7 +52,7 @@ class IfSql
             FROM t_if__deployments svc
             LEFT JOIN t_if__actions act ON svc.c_uuid = act.c_deployment_uuid
             LEFT JOIN t_if__runs run ON act.c_uuid = run.c_action_uuid
-            ORDER BY run_ago ASC, run_duration ASC
+            ORDER BY run_ago ASC, run_time ASC
 
         ";
 
@@ -72,7 +72,7 @@ class IfSql
                         'uuid', run_uuid,
                         'req', run_req,
                         'res', run_res,
-                        'duration', run_duration,
+                        'time', run_time,
                         'ok', run_ok,
                         'hash', run_hash,
                         'fid', run_fid,
