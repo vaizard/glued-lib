@@ -76,7 +76,7 @@ class IfUtils
         $res = $this->mysqli->execute_query($qs, [$action]);
         foreach ($res as $i) {
             $f = $i;
-            $f['deployment_data'] = json_decode($i['deployment_data'] ?? []);
+            $f['deployment_data'] = json_decode($i['deployment_data'] ?? [],true);
             return $f ?? [];
         }
         return [];
