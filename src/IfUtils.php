@@ -62,5 +62,19 @@ class IfUtils
         $this->db->rawQuery($q, [$data, $status, $response_hash, $response_fid, $run_uuid]);
     }
 
+    
+    public function getAction(mixed $action): array
+    {
+        $action = $args['uuid'] ?? false;
+        if (!$action) {
+            throw new \Exception('Action missing', 400);
+        }
+        $qs = "SELECT * FROM (" . ((new \Glued\Lib\IfSql())->q['rows:runs:joined']) . ") subquery";
+        $qs .= " WHERE subquery.act_uuid = ? and (subquery.row_num = 1 or subquery.row_num is NULL)";
+        $res = $this->mysqli->execute_query($qs, [$action]);
+        foreach ($res as $i) { return $i ?? []; }
+        return [];
+    }
+
 
 }
