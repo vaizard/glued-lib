@@ -65,9 +65,9 @@ class IfUtils
     }
 
 
-    public function getAction(mixed $action): array
+    public function getAction($action = false): array
     {
-        $action = $args['uuid'] ?? false;
+        $action = $action ?? false;
         if (!$action) {
             throw new \Exception('Action missing', 400);
         }
