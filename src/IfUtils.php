@@ -74,7 +74,10 @@ class IfUtils
         $qs = "SELECT * FROM (" . ((new \Glued\Lib\IfSql())->q['rows:runs:joined']) . ") subquery";
         $qs .= " WHERE subquery.act_uuid = ? and (subquery.row_num = 1 or subquery.row_num is NULL)";
         $res = $this->mysqli->execute_query($qs, [$action]);
-        foreach ($res as $i) { return $i ?? []; }
+        foreach ($res as &$i) {
+            $i['deployment_data'] = json_decode($i['deployment_data']);
+            return $i ?? [];
+        }
         return [];
     }
 
