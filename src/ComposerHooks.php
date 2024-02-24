@@ -110,6 +110,13 @@ class ComposerHooks
         EOT;
         file_put_contents('/etc/nginx/snippets/server/generated_name.conf', $comment.$output);
 
+        if (isset($settings['openapi']['hostname'])) {
+            echo "[INFO] Generating openapi server name." . PHP_EOL;
+            $output = <<<EOT
+            server_name {$settings['openapi']['hostname']};
+            EOT;
+            file_put_contents('/etc/nginx/snippets/server/generated_openapi_name.conf', $comment . $output);
+        }
 
         echo "[INFO] Generating nginx csp headers." . PHP_EOL;
         $policy = CSPBuilder::fromData(json_encode($settings['nginx']['csp']));
