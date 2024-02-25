@@ -78,6 +78,7 @@ nginx:
     cors:
         origin:
             - ${glued.protocol}${glued.hostname}
+            - ${glued.protocol}${glued.openapi.hostname}
         methods: ["GET", "POST", "PUT", "PATCH", "DELETE"]
         headers.allow: ["Authorization", "If-Match", "If-Unmodified-Since", "DNT", "Keep-Alive", "User-Agent", "X-CustomHeader", "X-Requested-With", "If-Modified-Since", "Cache-Control", "Content-Type", "Content-Range", "Content-Length" ]
         headers.expose: [ "Etag" ]
