@@ -118,7 +118,9 @@ class ComposerHooks
             file_put_contents('/etc/nginx/snippets/server/generated_openapi_name.conf', $comment . $output);
         }
 
+
         echo "[INFO] Generating nginx csp headers." . PHP_EOL;
+        unlink('/etc/nginx/snippets/server/generated_csp_headers.conf');
         $policy = CSPBuilder::fromData(json_encode($settings['nginx']['csp']));
         $policy->saveSnippet(
             '/etc/nginx/snippets/server/generated_csp_headers.conf',
@@ -142,17 +144,19 @@ class ComposerHooks
             $origins[0] = $settings['nginx']['cors']['origin']; 
         }
 
-        $output  = 'map_hash_bucket_size 256;'.PHP_EOL;
-        $output .= 'map $http_origin $origin_allowed {'.PHP_EOL;
-        $output .= '    default 0;'.PHP_EOL;
+        $output  = "map_hash_bucket_size 512;".PHP_EOL;
+        $output .= "map $http_origin $origin_allowed {".PHP_EOL;
+        $output .= "    default 0; # Origin not allowed fallback".PHP_EOL;
         foreach ($origins as $o) {
-        $output .= '    '.$o.' 1;'.PHP_EOL;
+        $output .= "    ".$o." 1; # Allowed origin".PHP_EOL;
         }
-        $output .= '}'.PHP_EOL;
-        $output .= 'map $origin_allowed $origin {'.PHP_EOL;
-        $output .= '    default "";'.PHP_EOL;
-        $output .= '    1 $http_origin;'.PHP_EOL;
-        $output .= '}'.PHP_EOL;
+        $output .= "    '' 2; # Special case for missing Origin header".PHP_EOL;
+        $output .= "}".PHP_EOL.PHP_EOL;
+        $output .= "map $origin_allowed $origin {".PHP_EOL;
+        $output .= "    default '';".PHP_EOL;
+        $output .= "    1 $http_origin;".PHP_EOL;
+        $output .= "    2 '*';".PHP_EOL;
+        $output .= "}".PHP_EOL;
 
         file_put_contents('/etc/nginx/conf.d/cors_map.conf', $comment.$output);
 
