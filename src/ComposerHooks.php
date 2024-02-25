@@ -110,10 +110,10 @@ class ComposerHooks
         EOT;
         file_put_contents('/etc/nginx/snippets/server/generated_name.conf', $comment.$output);
 
-        if (isset($settings['openapi']['hostname'])) {
+        if (isset($settings['glued']['openapi']['hostname'])) {
             echo "[INFO] Generating openapi server name." . PHP_EOL;
             $output = <<<EOT
-            server_name {$settings['openapi']['hostname']};
+            server_name {$settings['glued']['openapi']['hostname']};
             EOT;
             file_put_contents('/etc/nginx/snippets/server/generated_openapi_name.conf', $comment . $output);
         }
