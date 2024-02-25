@@ -10,8 +10,8 @@ glued:
     datapath: ${env.DATAPATH}
     frontend: ${glued.protocol}${glued.hostname}:3000
     apitoken: "gtk_" # api token prefix
-
-
+    openapi: openapi.${env.HOSTNAME}
+    baseuri: ${glued.protocol}${glued.hostname}
 
 db:
     host:       ${env.MYSQL_HOSTNAME}
@@ -20,12 +20,6 @@ db:
     password:   ${env.MYSQL_PASSWORD}
     charset:    utf8mb4
     collation:  utf8mb4_unicode_ci
-
-sqlsrv:
-    hostname:   ${env.SQLSRV_HOSTNAME}
-    database:   ${env.SQLSRV_DATABASE}
-    username:   ${env.SQLSRV_USERNAME}
-    password:   ${env.SQLSRV_PASSWORD}
 
 stor:
     dgs:
@@ -75,48 +69,6 @@ smtp:
 
 nginx:
     csp:
-        default-src:
-            self: true
-            allow:
-                - ${glued.protocol}${glued.hostname}
-            unsafe-inline: true
-        script-src:
-            self: true
-            allow:
-                - ${glued.protocol}${glued.hostname}
-                - ${glued.protocol}${glued.identity}
-            strict-dynamic: false
-            unsafe-eval: false
-            unsafe-inline: true
-        object-src:
-            self: true
-        media-src:
-            self: true
-            data: true
-        font-src:
-            self: true
-            data: true
-        img-src:
-            self: true
-            data: true
-        frame-ancestors:
-            self: true
-            allow:
-                - ${glued.protocol}${glued.hostname}
-                - ${glued.protocol}${glued.identity}
-        child-ancestors:
-            self: false
-            allow:
-                - ${glued.protocol}${glued.hostname}
-                - ${glued.protocol}${glued.identity}
-        connect-src:
-            self: true
-            allow:
-                - ${glued.protocol}${glued.hostname}
-                - ${glued.protocol}${glued.identity}
-        base-uri: 
-            self: true
-        require-trusted-types-for: script
         upgrade-insecure-requests: true
     ssl_stapling:
         ssl_stapling: off
