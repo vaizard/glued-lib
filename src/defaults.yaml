@@ -15,13 +15,19 @@ glued:
          hostname: openapi.${env.HOSTNAME}
 
 
-db:
+mysql:
     host:       ${env.MYSQL_HOSTNAME}
     database:   ${env.MYSQL_DATABASE}
     username:   ${env.MYSQL_USERNAME}
     password:   ${env.MYSQL_PASSWORD}
     charset:    utf8mb4
     collation:  utf8mb4_unicode_ci
+
+pgsql:
+    host:       ${env.PGSQL_HOSTNAME}
+    database:   ${env.PGSQL_DATABASE}
+    username:   ${env.PGSQL_USERNAME}
+    password:   ${env.PGSQL_PASSWORD}
 
 stor:
     dgs:
