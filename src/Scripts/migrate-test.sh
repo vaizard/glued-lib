@@ -45,11 +45,12 @@ create_mysql_database() {
 
 main() {
   if [ $# -ne 1 ]; then
+    echo "[WARN] $(basename $0): Mandatory parameter missing"
     echo "Usage: $0 <pgsql|mysql>"
     exit 1
   fi
 
-  local DB_SYSTEM=$1
+  local DB_SYSTEM="$1"
 
   case $DB_SYSTEM in
     pgsql)
@@ -61,16 +62,14 @@ main() {
       create_mysql_database
       ;;
     *)
-      echo "Invalid database system specified. Use 'pgsql' or 'mysql'."
+      echo "[FAIL] $(basename $0): Invalid database system specified. Use 'pgsql' or 'mysql'."
       exit 1
       ;;
   esac
-
-  echo "[INFO] Script execution completed."
 }
 
 # Call the main function with all arguments passed to the script
 main "$@"
+echo "[PASS] $(basename $0): ${1} connection OK"
+echo "[DONE] $(basename $0): ${1} -----------------"
 
-
-echo [PASS] "$1" database connection OK

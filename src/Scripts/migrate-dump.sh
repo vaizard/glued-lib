@@ -7,15 +7,44 @@ source "$DIR/loadenv.sh"
 # NOTE that double sourcing is needed
 # otherwise .env references won't be interpreted
 
-if ! mysql -u $MYSQL_USERNAME -p"${MYSQL_PASSWORD}" -h ${MYSQL_HOSTNAME} -e "use $MYSQL_DATABASE"; then
-  echo "[WARN] Connecting to database $MYSQL_DATABASE failed."
-  echo "[INFO] Attempting to create database and assign privileges.";
-  mysql -e "CREATE DATABASE $MYSQL_DATABASE /*\!40100 DEFAULT CHARACTER SET utf8 */;"
-  mysql -e "CREATE USER $MYSQL_USERNAME@$MYSQL_HOSTNAME IDENTIFIED BY '$MYSQL_PASSWORD';"
-  mysql -e "GRANT ALL PRIVILEGES ON glued.* TO '$MYSQL_USERNAME'@'$MYSQL_HOSTNAME';"
-  mysql -e "FLUSH PRIVILEGES;"
-  exit;
-fi
+main() {
+  if [ $# -ne 1 ]; then
+    echo "[WARN] $(basename $0): Mandatory parameter missing"
+    echo "Usage: $0 <pgsql|mysql>"
+    exit 1
+  fi
 
-dir="$(find ./glued/Config/Migrations -not -empty -type d)"
-dbmate -d ${dir} -s ${DATAPATH}/$(basename `pwd`)/schema.sql dump;
+  local DB_SYSTEM="${1}"
+  case "$DB_SYSTEM" in
+    pgsql)
+      export DATABASE_URL="${PGSQL_URL}"
+      source "$DIR/migrate-test.sh" "pgsql"
+      dir="$(find ./glued/Config/Pgsql -not -empty -type d)"
+      if [ -z "$dir" ]; then
+        echo "[WARN] No migration files in ./glued/Config/Pgsql"
+        exit 1
+      fi
+      echo "[INFO] dbmate -d ${dir} -s ${DATAPATH}/$(basename `pwd`)/schema-pgsql.sql status"
+      dbmate -d ${dir} -s ${DATAPATH}/$(basename `pwd`)/schema-pgsql.sql dump
+      ;;
+    mysql)
+      export DATABASE_URL="${MYSQL_URL}"
+      source "$DIR/migrate-test.sh" "mysql"
+      dir="$(find ./glued/Config/Mysql -not -empty -type d)"
+      if [ -z "$dir" ]; then
+        echo "[WARN] No migration files in ./glued/Config/Mysql"
+        exit 1
+      fi
+      echo "[INFO] dbmate -d ${dir} -s ${DATAPATH}/$(basename `pwd`)/schema-mysql.sql status"
+      dbmate -d ${dir} -s ${DATAPATH}/$(basename `pwd`)/schema-mysql.sql dump
+      ;;
+    *)
+      echo "[FAIL] $(basename $0): Invalid database system specified ${DB_SYSTEM}. Use 'pgsql' or 'mysql'."
+      exit 1
+      ;;
+  esac
+}
+
+# Call the main function with all arguments passed to the script
+main "$@"
+echo "[DONE] $(basename $0): ${1} -----------------"

@@ -6,71 +6,36 @@ source "$DIR/loadenv.sh"
 # NOTE that double sourcing is needed
 # otherwise .env references won't be interpreted
 
-# Function to check MySQL connection
-check_mysql() {
-  if ! mysql -u $MYSQL_USERNAME -p"${MYSQL_PASSWORD}" -h ${MYSQL_HOSTNAME} -e "use $MYSQL_DATABASE"; then
-    echo "[WARN] Connecting to MySQL database $MYSQL_DATABASE failed."
-    create_mysql
-  else
-    echo "[INFO] Connected to MySQL database $MYSQL_DATABASE successfully."
-  fi
-}
-
-# Function to check PostgreSQL connection
-check_pgsql() {
-  if ! PGPASSWORD=$PGSQL_PASSWORD psql -U $PGSQL_USERNAME -h $PGSQL_HOSTNAME -d $PGSQL_DATABASE -c "SELECT 1;" > /dev/null 2>&1; then
-    echo "[WARN] Connecting to PostgreSQL database $PGSQL_DATABASE failed."
-    create_pgsql
-  else
-    echo "[INFO] Connected to PostgreSQL database $PGSQL_DATABASE successfully."
-  fi
-}
-
-# Function to dynamically call check and create functions based on database type
-call_function_for_database() {
-  local db=$1
-  local func_prefix=$2
-  local func_name="${func_prefix}_${db}"
-
-  if declare -f "$func_name" > /dev/null; then
-    $func_name
-  else
-    echo "[ERROR] Function $func_name does not exist."
-  fi
-}
-
-# Main logic to handle command-line arguments and execute dbmate in a database-specific directory
-if [ -n "${1}" ]; then
-  databases=("mysql" "pgsql")
-  if [ "${1}" == "all" ]; then
-    for db in "${databases[@]}"; do
-      call_function_for_database $db "check"
-      if [ -n "${2}" ]; then
-        dir="./glued/Config/Migrations/${db}"
-        mkdir -p "${dir}" # Ensure directory exists
-        schema_file="${datapath}/$(basename `pwd`)/schema-${db}.sql"
-        dbmate -d ${dir} -s "${schema_file}" new "${2}"
-        echo "[PASS] Empty migration file ${2} generated in ${dir}, add relevant up/down statements using ${schema_file}."
-      else
-        echo "Please provide a migration name."
-      fi
-    done
-  elif [[ " ${databases[@]} " =~ " ${1} " ]]; then
-    db="${1}"
-    call_function_for_database $db "check"
-    if [ -n "${2}" ]; then
-      dir="./glued/Config/Migrations/${db}"
-      mkdir -p "${dir}" # Ensure directory exists
-      schema_file="${datapath}/$(basename `pwd`)/schema-${db}.sql"
-      dbmate -d ${dir} -s "${schema_file}" new "${2}"
-      echo "[PASS] Empty migration file ${2} generated in ${dir}, add relevant up/down statements using ${schema_file}."
-    else
-      echo "Please provide a migration name."
-    fi
-  else
-    echo "Unsupported database. Supported options are mysql, pgsql, all."
+main() {
+  if [ $# -ne 2 ]; then
+    echo "[WARN] $(basename $0): Mandatory parameter(s) missing"
+    echo "Usage: $0 <pgsql|mysql> <migration-name>"
     exit 1
   fi
-else
-  echo "Please specify the target database (mysql, pgsql, all) and migration name."
-fi
+
+  local DB_SYSTEM="${1}"
+  case "$DB_SYSTEM" in
+    pgsql)
+      export DATABASE_URL="${PGSQL_URL}"
+      source "$DIR/migrate-test.sh" "pgsql"
+      dir="$(find ./glued/Config/Pgsql -type d)"
+      dbmate -d ${dir} -s ${datapath}/$(basename `pwd`)/schema-pgsql.sql new "${2}";
+      echo "[PASS] Empty migration file ${2} generated, add relevant up/down statements. To get the \`CREATE TABLE\` statements, use \`migrate-dump\` and cherry-pick what you need."
+      ;;
+    mysql)
+      export DATABASE_URL="${MYSQL_URL}"
+      source "$DIR/migrate-test.sh" "mysql"
+      dir="$(find ./glued/Config/Mysql -not -empty -type d)"
+      dbmate -d ${dir} -s ${datapath}/$(basename `pwd`)/schema-pgsql.sql new "${2}";
+      echo "[PASS] Empty migration file ${2} generated, add relevant up/down statements. To get the \`CREATE TABLE\` statements, use \`migrate-dump\` and cherry-pick what you need."
+      ;;
+    *)
+      echo "[FAIL] $(basename $0): Invalid database system specified ${DB_SYSTEM}. Use 'pgsql' or 'mysql'."
+      exit 1
+      ;;
+  esac
+}
+
+# Call the main function with all arguments passed to the script
+main "$@"
+echo "[DONE] $(basename $0): ${1} -----------------"

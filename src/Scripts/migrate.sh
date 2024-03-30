@@ -17,8 +17,27 @@ if ! mysql -u $MYSQL_USERNAME -p"${MYSQL_PASSWORD}" -h ${MYSQL_HOSTNAME} -e "use
   exit;
 fi
 
-for dir in $(find ./glued/Config/Migrations -not -empty -type d) ; do 
-  dbmate -d "${dir}" -s "${DATAPATH}/$(basename `pwd`)/schema.sql" migrate;
+# Connect to PostgreSQL database
+if ! PGPASSWORD="${PGSQL_PASSWORD}" psql -U "${PGSQL_USERNAME}" -h "${PGSQL_HOSTNAME}" -d "${PGSQL_DATABASE}" -c "\q"; then
+  echo "[WARN] Connecting to database $PGSQL_DATABASE failed."
+  echo "[INFO] Attempting to create database and assign privileges."
+
+  # Create Database
+  PGPASSWORD="${PGSQL_PASSWORD}" psql -U "${PGSQL_USERNAME}" -h "${PGSQL_HOSTNAME}" -d "postgres" -c "CREATE DATABASE ${PGSQL_DATABASE} WITH ENCODING='UTF8';"
+
+  # Create User and Grant Privileges
+  PGPASSWORD="${PGSQL_PASSWORD}" psql -U "${PGSQL_USERNAME}" -h "${PGSQL_HOSTNAME}" -d "${PGSQL_DATABASE}" <<EOSQL
+CREATE USER ${PGSQL_USERNAME} WITH PASSWORD '${PGSQL_PASSWORD}';
+GRANT ALL PRIVILEGES ON DATABASE ${PGSQL_DATABASE} TO ${PGSQL_USERNAME};
+EOSQL
+fi
+
+for dir in $(find ./glued/Config/Migrations/mysql -not -empty -type d) ; do 
+  dbmate -d "${dir}" -s "${DATAPATH}/$(basename `pwd`)/mysql-schema.sql" migrate;
+done;
+
+for dir in $(find ./glued/Config/Migrations/pgsql -not -empty -type d) ; do 
+  dbmate -d "${dir}" -s "${DATAPATH}/$(basename `pwd`)/pgsql-schema.sql" migrate;
 done;
 
 echo "[PASS] migrated"

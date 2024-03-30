@@ -28,6 +28,8 @@ pgsql:
     database:   ${env.PGSQL_DATABASE}
     username:   ${env.PGSQL_USERNAME}
     password:   ${env.PGSQL_PASSWORD}
+    charset:    utf8
+    schema:     ${env.PGSQL_SCHEMA}
 
 stor:
     dgs:
