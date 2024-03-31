@@ -4,14 +4,14 @@ namespace Glued\Lib;
 /**
  * IfUtils class provides unified query strings for If plugins and the If controller itself.
  */
-class IfUtils
+class MyIfUtils
 {
-    protected $pg;
-    public function __construct($pg) {
-        $this->pg = $pg;
+    protected $mysqli;
+    public function __construct($mysqli) {
+        $this->mysqli= $mysqli;
     }
 
-    public function getDeployment($deployUUID = false, $actionUUID = false, $serviceName = false, $remote = false): string
+    public function logRequest($act_uuid): string
     {
         $run_uuid = \Ramsey\Uuid\Uuid::uuid4()->toString();
         $q = "
@@ -67,7 +67,10 @@ class IfUtils
 
     public function getAction($action = false): array
     {
-        if (!$action) {  throw new \Exception('Action missing', 400); }
+        $action = $action ?? false;
+        if (!$action) {
+            throw new \Exception('Action missing', 400);
+        }
         $qs = "SELECT * FROM (" . ((new \Glued\Lib\IfSql())->q['rows:runs:joined']) . ") subquery";
         $qs .= " WHERE subquery.act_uuid = ? and (subquery.row_num = 1 or subquery.row_num is NULL)";
         $res = $this->mysqli->execute_query($qs, [$action]);
