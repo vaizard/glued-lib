@@ -44,18 +44,18 @@ $container->set('pg', function (Container $c) {
     $cnf = $c->get('settings')['pgsql'];
     $dsn = "pgsql:host={$cnf['host']};dbname={$cnf['database']};options='--client_encoding={$cnf['charset']}'";
     $options = [
-        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_EMULATE_PREPARES   => false,
+        \PDO::ATTR_ERRMODE            => \PDO::ERRMODE_EXCEPTION,
+        \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
+        \PDO::ATTR_EMULATE_PREPARES   => false,
     ];
     try {
-        $conn = new PDO(
+        $conn = new \PDO(
             $dsn,
             $cnf['username'],
             $cnf['password'],
             $options);
         $conn->exec("SET search_path TO {$cnf['schema']}");
-    } catch (PDOException $e) {
+    } catch (\PDOException $e) {
         throw new \Exception($e->getMessage());
     }
     return $conn;
