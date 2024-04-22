@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+use DI\Container;
 use Psr\Log\NullLogger;
 use Grasmash\YamlExpander\YamlExpander;
 use Symfony\Component\Yaml\Yaml;
