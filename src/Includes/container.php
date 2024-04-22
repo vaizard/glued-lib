@@ -41,8 +41,7 @@ $container->set('settings', function () {
 });
 
 $container->set('pg', function (Container $c) {
-    print_r($c->get('settings')); die();
-    //$cnf = $c->get('settings')['pg'];
+    $cnf = $c->get('settings')['pgsql'];
     $dsn = "pgsql:host={$cnf['host']};dbname={$cnf['database']};options='--client_encoding={$cnf['charset']}'";
     $options = [
         PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
