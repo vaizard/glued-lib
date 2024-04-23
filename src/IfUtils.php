@@ -20,7 +20,7 @@ class IfUtils
         if ($uuid) { $q .= " AND uuid = :uuid "; }
         $stmt = $this->pg->prepare($q);
         if ($service) { $stmt->bindValue(':service', $service, \PDO::PARAM_STR); }
-        if ($service) { $stmt->bindValue(':uuid', $uuid, \PDO::PARAM_STR); }
+        if ($uuid) { $stmt->bindValue(':uuid', $uuid, \PDO::PARAM_STR); }
         $stmt->execute();
         $res = $stmt->fetch(\PDO::FETCH_ASSOC);
         return $res['deployments'] ?? '{}';
