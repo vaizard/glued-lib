@@ -7,8 +7,10 @@ namespace Glued\Lib;
 class IfUtils
 {
     protected $pg;
+    protected $settings;
     public function __construct($pg) {
         $this->pg = $pg;
+        $this->settings = $settings;
     }
 
     public function getDeploymentsJson($service = false): string {

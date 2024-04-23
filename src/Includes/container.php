@@ -65,5 +65,5 @@ $container->set('pg', function (Container $c) {
 });
 
 $container->set('ifutils', function (Container $c) {
-    return new IfUtils($c->get('pg'));
+    return new IfUtils($c->get('pg'), $c->get('settings'));
 });
