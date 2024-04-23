@@ -5,6 +5,7 @@ use DI\Container;
 use Psr\Log\NullLogger;
 use Grasmash\YamlExpander\YamlExpander;
 use Symfony\Component\Yaml\Yaml;
+use Glued\Lib\IfUtils;
 use \PDO;
 use \PDOException;
 
@@ -61,4 +62,8 @@ $container->set('pg', function (Container $c) {
         throw new \Exception($e->getMessage());
     }
     return $conn;
+});
+
+$container->set('ifutils', function (Container $c) {
+    return new IfUtils($c->get('pg'));
 });
