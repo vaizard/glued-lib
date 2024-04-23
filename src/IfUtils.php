@@ -26,8 +26,8 @@ class IfUtils
         return $res['deployments'] ?? '{}';
     }
 
-    public function getDeploymentsArr($service = false): array {
-        return json_decode($this->getDeploymentsJson($service));
+    public function getDeploymentsArr($service = false, $uuid = false): array {
+        return json_decode($this->getDeploymentsJson($service, $uuid));
     }
 
 
