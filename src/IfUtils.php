@@ -8,7 +8,7 @@ class IfUtils
 {
     protected $pg;
     protected $settings;
-    public function __construct($pg) {
+    public function __construct($pg, $settings) {
         $this->pg = $pg;
         $this->settings = $settings;
     }
