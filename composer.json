@@ -17,7 +17,6 @@
 		"psr/http-server-middleware": "^1.0",
 		"php-di/php-di": "^7",
 		"monolog/monolog": "^3",
-		"paragonie/csp-builder": "^v2.9.0",
 		"phpfastcache/phpfastcache": "^9",
 		"psr/log": "^3",
 		"selective/transformer": "^1",
@@ -27,7 +26,7 @@
 		"voku/anti-xss": "^4",
 		"web-token/jwt-framework": "^3",
 		"symfony/notifier": "^6",
-		"symfony/telegram-notifier": "^6.2",
+		"symfony/telegram-notifier": "^6.4",
 		"symfony/mailer": "^6"
     },
 	"require-dev": {
