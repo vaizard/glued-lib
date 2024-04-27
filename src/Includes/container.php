@@ -164,3 +164,11 @@ $container->set('crypto', function () {
     return new Crypto();
 });
 
+$container->set('reqfactory', function () {
+    return Psr17FactoryDiscovery::findRequestFactory();
+});
+
+$container->set('urifactory', function () {
+    return Psr17FactoryDiscovery::findUriFactory();
+});
+
