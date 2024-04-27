@@ -18,6 +18,7 @@
 		"php-di/php-di": "^7",
 		"monolog/monolog": "^3",
 		"paragonie/csp-builder": "^v2.9.0",
+		"phpfastcache/phpfastcache": "^9",
 		"psr/log": "^3",
 		"selective/transformer": "^1",
 		"slim/slim": "^4",
