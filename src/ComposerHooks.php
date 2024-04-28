@@ -120,10 +120,11 @@ class ComposerHooks
 
 
         echo "[INFO] Generating nginx csp headers." . PHP_EOL;
-        unlink('/etc/nginx/snippets/server/generated_csp_headers.conf');
+        $csp_file = '/etc/nginx/snippets/server/generated_csp_headers.conf';
+        if (file_exists($csp_file)) { unlink('/etc/nginx/snippets/server/generated_csp_headers.conf'); }
         $policy = CSPBuilder::fromData(json_encode($settings['nginx']['csp']));
         $policy->saveSnippet(
-            '/etc/nginx/snippets/server/generated_csp_headers.conf',
+            $csp_file,
             CSPBuilder::FORMAT_NGINX,
             fn ($output) =>  $output = $comment.$output
         );
