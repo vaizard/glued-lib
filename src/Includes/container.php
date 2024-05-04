@@ -20,6 +20,7 @@ use Monolog\Processor\UidProcessor;
 use Monolog\Handler\TelegramBotHandler;
 use Monolog\Handler\FallbackGroupHandler;
 use Monolog\Handler\DeduplicationHandler;
+use Ramsey\Uuid\Uuid;
 
 $container->set('fscache', function () {
     try {
@@ -73,6 +74,10 @@ $container->set('settings', function () {
 
     $ret['routes'] = $routes;
     return $ret;
+});
+
+$container->set('uuid', function () {
+    return Uuid::uuid4()->toText();
 });
 
 $container->set('pg', function (Container $c) {
@@ -154,6 +159,7 @@ $container->set('jsonvalidator', function () {
 });
 
 $container->set('routecollector', $app->getRouteCollector());
+
 $container->set('responsefactory', $app->getResponseFactory());
 
 $container->set('utils', function (Container $c) {
