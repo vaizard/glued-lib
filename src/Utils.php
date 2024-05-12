@@ -2,7 +2,6 @@
 declare(strict_types=1);
 namespace Glued\Lib;
 
-use Exception;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Message\ResponseInterface as Response;
 use Slim\Routing\RouteContext;
@@ -13,7 +12,7 @@ class Utils
     protected $settings;
     protected $routecollector;
 
-    public function __construct($db, $settings, $routecollector) {
+    public function __construct($settings, $routecollector) {
         $this->settings = $settings;
         $this->routecollector = $routecollector;
     }
@@ -152,6 +151,40 @@ class Utils
     ////////////////////////////////////////////////////////////////////
     // SLIM ROUTING HELPERS                                           //
     ////////////////////////////////////////////////////////////////////
+
+    public static function openApiToRoutes($openApiFile, $routesFile = false): bool | string
+    {
+        $openapiArray = yaml_parse_file($openApiFile);
+        $routes = [];
+        // Loop through paths
+        foreach ($openapiArray['paths'] as $path => $details) {
+            $methods = [];
+
+            // Add all methods if defined and unset null values
+            foreach ($details as $method => $data) {
+                if ($method !== 'x-glued-pathname' && $method !== 'x-glued-provides') {
+                    $methodValue = $data['x-glued-method'];
+                    if ($methodValue !== null) {
+                        $methods[$method] = $methodValue;
+                    }
+                }
+            }
+            if ($methods == []) { throw new \Exception("x-glued-method missing for {$path}"); }
+            if (empty($details['x-glued-pathname'])) { throw new \Exception("x-glued-pathname missing for {$path}"); }
+
+            $routes[$details['x-glued-pathname']] = [
+                'pattern' => $openapiArray['servers'][0]['url'] . $path,
+                'label' => $details['get']['summary'],
+                'dscr' => $details['get']['description'],
+                'provides' => $details['x-glued-provides'] ?? throw new \Exception("x-glued-provides key missing for {$path}"),
+                'service' => $openapiArray['info']['x-glued-service'] ?? throw new \Exception("x-glued-service key missing for {$path}"),
+                'methods' => $methods
+            ];
+        }
+        if (!$routesFile) { return yaml_emit($routes, YAML_UTF8_ENCODING); }
+        else { yaml_emit_file($routesFile, $routes, YAML_UTF8_ENCODING); return true; }
+    }
+
 
     public function get_current_route($request): string {
         $routeContext = RouteContext::fromRequest($request);

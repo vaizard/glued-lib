@@ -6,6 +6,7 @@ use Composer\Script\Event;
 use Dotenv\Dotenv;
 use Glued\Lib\Crypto;
 use Grasmash\YamlExpander\YamlExpander;
+use mysql_xdevapi\Exception;
 use PharData;
 use Psr\Log\NullLogger;
 use ParagonIE\CSPBuilder\CSPBuilder;
@@ -16,21 +17,62 @@ define("__ROOT__", getcwd());
 class ComposerHooks
 {
 
-    public static function preInstall(Event $event): void {
+    public static function preInstall(Event $event): void
+    {
         echo "[NOTE] INSTALLING GLUED";
     }
 
-    public static function postPackageInstall(Event $event): void {
+
+    public static function postPackageInstall(Event $event): void
+    {
         $installedPackage = $event->getComposer()->getPackage();
         echo "[NOTE] GLUED INSTALLED";
     }
 
-    public static function genKey(Event $event): void {
+
+    public static function genKey(Event $event): void
+    {
         $crypto = new Crypto();
         echo $crypto->genkey_base64() . PHP_EOL . PHP_EOL;
     }
 
-    public static function getSettings(): array {
+
+    public static function openApiToRoutes($openApiFile, $routesFile = false): bool | string
+    {
+        $openapiArray = yaml_parse_file($openApiFile);
+        $routes = [];
+        // Loop through paths
+        foreach ($openapiArray['paths'] as $path => $details) {
+            $methods = [];
+
+            // Add all methods if defined and unset null values
+            foreach ($details as $method => $data) {
+                if ($method !== 'x-glued-pathname' && $method !== 'x-glued-provides') {
+                    $methodValue = $data['x-glued-method'];
+                    if ($methodValue !== null) {
+                        $methods[$method] = $methodValue;
+                    }
+                }
+            }
+            if ($methods == []) { throw new \Exception("x-glued-method missing for {$path}"); }
+            if (empty($details['x-glued-pathname'])) { throw new \Exception("x-glued-pathname missing for {$path}"); }
+
+            $routes[$details['x-glued-pathname']] = [
+                'pattern' => $openapiArray['servers'][0]['url'] . $path,
+                'label' => $details['get']['summary'],
+                'dscr' => $details['get']['description'],
+                'provides' => $details['x-glued-provides'] ?? throw new \Exception("x-glued-provides key missing for {$path}"),
+                'service' => $openapiArray['info']['x-glued-service'] ?? throw new \Exception("x-glued-service key missing for {$path}"),
+                'methods' => $methods
+            ];
+        }
+        if (!$routesFile) { return yaml_emit($routes, YAML_UTF8_ENCODING); }
+        else { yaml_emit_file($routesFile, $routes, YAML_UTF8_ENCODING); return true; }
+    }
+
+
+    public static function getSettings(): array
+    {
         $ret    = [];
         $routes = [];
         $seed   = [
@@ -73,6 +115,20 @@ class ComposerHooks
         $ret = $class_ye->expandArrayProperties($config, $refs);
 
 
+        echo "[INFO] (re)building service routes cache from glued/Config/openapi.yaml";
+
+        try {
+            self::openApiToRoutes(
+                "{$seed['ROOTPATH']}/glued/Config/openapi.yaml",
+                "{$refs['env']['DATAPATH']}/{$seed['USERVICE']}/cache/routes.yaml"
+            );
+        } catch (\Exception $e) {
+            echo "[FAIL] building {$refs['env']['DATAPATH']}/{$seed['USERVICE']}/cache/routes.yaml.";
+            print_r($e);
+        }
+        echo "[PASS] routes rebuilt.";
+
+
         // Read the routes
         $files = glob($ret['glued']['datapath'] . '/*/cache/routes.yaml');
         foreach ($files as $file) {
@@ -86,15 +142,19 @@ class ComposerHooks
         return $ret;
     }
 
+
     public static function printSettings(): void {
         print_r(self::getSettings());
     }
+
 
     public static function generatePHPFPM(): void {
         // Stub for feature compatibility
     }
 
-    public static function generateNginx(): void {
+
+public static function generateNginx(): void
+{
         $settings = self::getSettings();
         $comment = <<<EOT
         # NOTE that when this file is found under /etc/nginx
@@ -177,7 +237,9 @@ class ComposerHooks
         file_put_contents('/etc/nginx/snippets/server/generated_cors_headers.conf', $comment.$output);
     }
 
-    public static function configTool(Event $event): void {
+
+    public static function configTool(Event $event): void
+    {
         $composer = $event->getComposer();
         echo "[NOTE] STARTING THE CONFIGURATION TESTING AND SETUP TOOL" . PHP_EOL . PHP_EOL;
 
