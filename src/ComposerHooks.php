@@ -114,21 +114,6 @@ class ComposerHooks
         $refs['env'] = array_merge($seed, $_ENV);
         $ret = $class_ye->expandArrayProperties($config, $refs);
 
-
-        echo "[INFO] (re)building service routes cache from glued/Config/openapi.yaml";
-
-        try {
-            self::openApiToRoutes(
-                "{$seed['ROOTPATH']}/glued/Config/openapi.yaml",
-                "{$refs['env']['DATAPATH']}/{$seed['USERVICE']}/cache/routes.yaml"
-            );
-        } catch (\Exception $e) {
-            echo "[FAIL] building {$refs['env']['DATAPATH']}/{$seed['USERVICE']}/cache/routes.yaml.";
-            print_r($e);
-        }
-        echo "[PASS] routes rebuilt.";
-
-
         // Read the routes
         $files = glob($ret['glued']['datapath'] . '/*/cache/routes.yaml');
         foreach ($files as $file) {
@@ -270,6 +255,18 @@ public static function generateNginx(): void
             echo "ok." . PHP_EOL;
           }
         }
+
+        $openApiFile = $_ENV['DATAPATH'] . "/" . basename(__ROOT__) . "/cache/openapi.yaml";
+        $routesFile = $_ENV['DATAPATH'] . "/" . basename(__ROOT__) . "/cache/routes.yaml";
+        echo "[INFO] (re)building service routes cache from {$openApiFile}";
+        try {
+            self::openApiToRoutes($openApiFile, $routesFile);
+        } catch (\Exception $e) {
+            echo "[FAIL] building {$routesFile}";
+            print_r($e);
+        }
+        echo "[PASS] routes rebuilt.";
+
 
         // MYSQL
         echo "[INFO] Ensuring MySQL connection works fine" . PHP_EOL;
