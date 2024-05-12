@@ -181,8 +181,8 @@ class Utils
                 'methods' => $methods
             ];
         }
-        if (!$routesFile) { return yaml_emit($routes, YAML_UTF8_ENCODING); }
-        else { yaml_emit_file($routesFile, $routes, YAML_UTF8_ENCODING); return true; }
+        if (!$routesFile) { return yaml_emit(['routes' => $routes], YAML_UTF8_ENCODING); }
+        else { yaml_emit_file($routesFile, ['routes' => $routes], YAML_UTF8_ENCODING); return true; }
     }
 
 
