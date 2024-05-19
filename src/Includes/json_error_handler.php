@@ -20,7 +20,7 @@ return function ($exception, $inspector) {
 
     if ($short == "AuthJwtException")       { $http = '401 Unauthorized'; $r['hint'] = "Login at ".$settings['oidc']['uri']['login']; }
     if ($short == "AuthTokenException")     { $http = '401 Unauthorized'; $r['hint'] = "Login at ".$settings['oidc']['uri']['login']; }
-    if ($short == "HttpNotFoundException")  { $http = '404 Not Found'; $r['hint'] = "Try: " . $container->get('settings')['glued']['protocol'].$container->get('settings')['glued']['hostname'].$container->get('routecollector')->getRouteParser()->UrlFor('be_core_routes_v1'); }
+    if ($short == "HttpNotFoundException")  { $http = '404 Not Found'; $r['hint'] = "Try: " . $container->get('settings')['glued']['protocol'].$container->get('settings')['glued']['hostname'].$container->get('routecollector')->getRouteParser()->UrlFor('be_core_routes'); }
     if ($r['title'] == "mysqli_sql_exception") {
         $container->get('logger')->error("EXCEPTION HANDLER", [ "SQL query" => $container->get('db')->getLastQuery(), "Exception" => $r ]);
         $r['hint'] = "Query logged.";
