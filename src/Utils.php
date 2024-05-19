@@ -152,7 +152,7 @@ class Utils
     // SLIM ROUTING HELPERS                                           //
     ////////////////////////////////////////////////////////////////////
 
-    public static function openApiToRoutes($openApiFile, $routesFile = false): bool | string
+    public function openApiToRoutes($openApiFile, $routesFile = false): bool | string
     {
         $openapiArray = yaml_parse_file($openApiFile);
         $routes = [];

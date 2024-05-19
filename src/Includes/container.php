@@ -9,8 +9,6 @@ use Glued\Lib\IfUtils;
 use Glued\Lib\Crypto;
 use Glued\Lib\Utils;
 use Opis\JsonSchema\Validator;
-use \PDO;
-use \PDOException;
 use Phpfastcache\CacheManager;
 use Phpfastcache\Config\ConfigurationOption;
 use Phpfastcache\Helper\Psr16Adapter;

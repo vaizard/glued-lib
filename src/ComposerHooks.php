@@ -258,11 +258,11 @@ public static function generateNginx(): void
 
         $openApiFile = $_ENV['DATAPATH'] . "/" . basename(__ROOT__) . "/cache/openapi.yaml";
         $routesFile = $_ENV['DATAPATH'] . "/" . basename(__ROOT__) . "/cache/routes.yaml";
-        echo "[INFO] (re)building service routes cache from {$openApiFile}";
+        echo "[INFO] (re)building service routes cache from {$openApiFile} . PHP_EOL";
         try {
             self::openApiToRoutes($openApiFile, $routesFile);
         } catch (\Exception $e) {
-            echo "[FAIL] building {$routesFile}";
+            echo "[FAIL] building {$routesFile} . PHP_EOL";
             print_r($e);
         }
         echo "[PASS] routes rebuilt.";
