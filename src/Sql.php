@@ -201,7 +201,7 @@ abstract class GenericSql
         $this->stmt->bindParam(':uuid', $uuid);
         $this->stmt->execute();
         $res = $this->stmt->fetchColumn();
-        if ($res) { return json_decode($res); }
+        if ($res) { return json_decode($res, true); }
         else return $res;
     }
 
