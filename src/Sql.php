@@ -23,6 +23,8 @@ abstract class GenericSql
     /** @var array An array of metadata columns that are automatically appended to the `doc` object. */
     public array $metaColumns = ['nonce', 'created_at', 'updated_at'];
 
+    public string $selectModifier;
+
     /** @var string The name of the UUID column. The column is stored, generated from doc->>uuid */
     public string $uuidColumn = 'uuid';
 
@@ -49,6 +51,7 @@ abstract class GenericSql
     {
         $this->pdo = $pdo;
         $this->table = $table;
+        $this->selectModifier = "{$this->metaObject()} ||";
     }
 
     /**
@@ -252,7 +255,8 @@ abstract class GenericSql
 
     public function getAll(): array
     {
-        $query = "SELECT {$this->metaObject()} || {$this->dataColumn} FROM {$this->schema}.{$this->table}";
+        //$query = "SELECT {$this->metaObject()} || {$this->dataColumn} FROM {$this->schema}.{$this->table}";
+        $query = "SELECT {$this->selectModifier} {$this->dataColumn} FROM {$this->schema}.{$this->table}";
         $conds = [];
         if (!empty($this->wheres)) {
             foreach ($this->wheres as $c) { $conds[] = "{$c['column']} {$c['condition']} :" . md5($c['column']); }
