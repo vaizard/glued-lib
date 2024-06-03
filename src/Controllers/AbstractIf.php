@@ -10,14 +10,19 @@ abstract class AbstractIf extends AbstractService
 {
 
 
+    /**
+     * @var \Glued\Lib\Sql
+     */
     protected $deployment;
-    protected $q;
+
 
     /**
-     * AbstractController constructor. We're passing the whole container to the constructor to be
-     * able to do stuff like $this->c->db->method(). This is considered bad pracise that makes
-     * the whole app more memory hungry / less efficient. Dependency injection should be rewritten
-     * to take advantage of PHP-DI's autowiring.
+     * @var array
+     */
+    protected $q;
+
+
+    /**
      * @param ContainerInterface $container
      */
     public function __construct(ContainerInterface $container)
