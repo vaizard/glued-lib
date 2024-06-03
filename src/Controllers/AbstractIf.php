@@ -6,15 +6,12 @@ use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
-abstract class AbstractIf extends AbstractCommon
+abstract class AbstractIf extends AbstractService
 {
-    /**
-     * @var ContainerInterface
-     */
-    protected $c;
+
+
     protected $deployment;
     protected $q;
-
 
     /**
      * AbstractController constructor. We're passing the whole container to the constructor to be
@@ -25,7 +22,7 @@ abstract class AbstractIf extends AbstractCommon
      */
     public function __construct(ContainerInterface $container)
     {
-        $this->c = $container;
+        parent::__construct($container);
         $this->deployment = new \Glued\Lib\Sql($this->pg, 'if__deployments');
         $this->q = [];
     }
