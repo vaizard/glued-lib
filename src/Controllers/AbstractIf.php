@@ -1,0 +1,64 @@
+<?php
+declare(strict_types=1);
+namespace Glued\Lib\Controllers;
+
+use Psr\Container\ContainerInterface;
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+
+abstract class AbstractIf extends AbstractCommon
+{
+    /**
+     * @var ContainerInterface
+     */
+    protected $c;
+    protected $deployment;
+    protected $q;
+
+
+    /**
+     * AbstractController constructor. We're passing the whole container to the constructor to be
+     * able to do stuff like $this->c->db->method(). This is considered bad pracise that makes
+     * the whole app more memory hungry / less efficient. Dependency injection should be rewritten
+     * to take advantage of PHP-DI's autowiring.
+     * @param ContainerInterface $container
+     */
+    public function __construct(ContainerInterface $container)
+    {
+        $this->c = $container;
+        $this->deployment = new \Glued\Lib\Sql($this->pg, 'if__deployments');
+        $this->q = [];
+    }
+
+
+    protected function getInterface($deploymentUUID, $interfaceConnector)
+    {
+        try {
+            $d = $this->deployment->get($deploymentUUID);
+            foreach ($d['interfaces'] as $interface) {
+                if ($interface['connector'] === $interfaceConnector) {
+                    return $interface;
+                }
+            };
+        } catch (\Exception $e) { throw new \Exception("Deployment {$deploymentUUID} not found or data source gone. Available deployments are listed at {$this->settings["glued"]["baseuri"]}{$this->settings["routes"]["be_if_deployments"]["pattern"]}?service=s4s", 500); }
+        throw new \Exception("Bad interface configuration / interface connector missing in {$deploymentUUID}",500);
+    }
+
+
+    public function methods(Request $request, Response $response, array $args = []): Response 
+    {
+        $service = explode("/", (string) $request->getUri()->getPath())[4];
+        $filteredRoutes = array_filter($this->settings["routes"], function ($route) use ($service) {
+            return isset($route["service"]) && strpos($route["service"], "if/{$service}") === 0;
+        });
+        foreach ($filteredRoutes as $r) {
+            $res[] = [
+                'label' => $r['label'],
+                'dscr' => $r['dscr'],
+                'uri' => $this->settings['glued']['baseuri'].str_replace('{deployment}', $args['deployment'], $r['pattern'])
+            ];
+        }
+        return $response->withJson($res);
+    }
+
+}
