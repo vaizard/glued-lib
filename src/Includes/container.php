@@ -161,7 +161,7 @@ $container->set('routecollector', $app->getRouteCollector());
 $container->set('responsefactory', $app->getResponseFactory());
 
 $container->set('utils', function (Container $c) {
-    return new Utils($c->get('db'), $c->get('settings'), $c->get('routecollector'));
+    return new Utils($c->get('settings'), $c->get('routecollector'));
 });
 
 $container->set('crypto', function () {
