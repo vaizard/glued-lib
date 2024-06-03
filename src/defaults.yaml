@@ -121,6 +121,11 @@ slim:
     determineRouteBeforeAppMiddleware: true
 
 php:
+    error_reporting: !php/const E_ALL
+    ini:
+        always_populate_raw_post_data: -1
+        display_errors: ${slim.displayErrorDetails}
+        display_startup_errors: ${slim.displayErrorDetails}
     password_hash_algo: !php/const PASSWORD_ARGON2ID
     password_hash_opts:  
         memory_cost:    131072  # !php/const PASSWORD_ARGON2_DEFAULT_MEMORY_COST
@@ -130,7 +135,7 @@ php:
         47:     0 # CURLOPT_POST
         78:     2 # CURLOPT_CONNECTTIMEOUT
         19913:  1 # CURLOPT_RETURNTRANSFER
-        10018:  "Mozilla/5.0 (X11; Linux x86_64; rv:98.0) Gecko/20100101 Firefox/98.0" # CURLOPT_USERAGENT
+        10018:  "Mozilla/5.0 (X11; Linux x86_64; rv:125.0) Gecko/20100101 Firefox/125.0" # CURLOPT_USERAGENT
         10082:  ${glued.datapath}/cache/cookies.txt # CURLOPT_COOKIEJAR
         10031:  ${glued.datapath}/cache/cookies.txt # CURLOPT_COOKIEFILE
 
