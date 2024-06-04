@@ -6,13 +6,10 @@ use Nyholm\Psr7\Factory\Psr17Factory;
 use Slim\Factory\AppFactory;
 use Slim\Http\Factory\DecoratedResponseFactory;
 
-define("__ROOT__", realpath(__DIR__ . '/..'));
 require_once(__ROOT__ . '/vendor/autoload.php');
 
-// Load .env file, don't override existing $_ENV values
-// If GLUED_PROD = 1, rely purely on $_ENV and don't load
-// the .env file (which is intended only for development)
-// to improve performance.
+// Load .env file, don't override existing $_ENV values. If GLUED_PROD = 1, rely purely on $_ENV and don't load
+// the .env file (which is intended only for development) to improve performance.
 if (!isset($_ENV['GLUED_PROD'])) {
     $dotenv = Dotenv\Dotenv::createImmutable(__ROOT__);
     $dotenv->safeLoad();
