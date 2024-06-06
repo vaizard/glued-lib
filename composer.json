@@ -28,8 +28,9 @@
 		"web-token/jwt-framework": "^3",
 		"symfony/notifier": "^6",
 		"symfony/telegram-notifier": "^6.4",
-		"symfony/mailer": "^6"
-    },
+		"symfony/mailer": "^6",
+		"paragonie/csp-builder": "^3"
+	},
 	"require-dev": {
 		"ergebnis/composer-normalize": "^2"
 	},
