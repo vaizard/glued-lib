@@ -49,11 +49,20 @@ abstract class AbstractIf extends AbstractService
 
     public function methods(Request $request, Response $response, array $args = []): Response 
     {
+        $actions = new \Glued\Lib\Sql($this->pg, 'if__actions');
         $service = explode("/", (string) $request->getUri()->getPath())[4];
         $filteredRoutes = array_filter($this->settings["routes"], function ($route) use ($service) {
             return isset($route["service"]) && strpos($route["service"], "if/{$service}") === 0;
         });
         foreach ($filteredRoutes as $r) {
+            foreach ($r['methods'] as $method=>$call) {
+                $action = [
+                    'deployment' => $args['deployment'],
+                    'method' => $method,
+                    'path' => str_replace('{deployment}', $args['deployment'], $r['pattern'])
+                ];
+                $actions->create($action, true);
+            }
             $res[] = [
                 'label' => $r['label'],
                 'dscr' => $r['dscr'],
