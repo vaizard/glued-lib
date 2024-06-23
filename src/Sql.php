@@ -93,8 +93,8 @@ abstract class GenericSql
     /**
      * Handles expected exceptions thrown during upsert operations.
      *
-     * @param Exception $e The exception thrown during the upsert operation.
-     * @throws Exception If the exception code is not "23505" or if the upsertIgnore conditions are not met.
+     * @param \Exception $e The exception thrown during the upsert operation.
+     * @throws \Exception If the exception code is not "23505" or if the upsertIgnore conditions are not met.
      */
     private function handleUpsertException($e)
     {
@@ -134,22 +134,38 @@ abstract class GenericSql
      *
      * @param array $doc The associative array representing the json document to be inserted or upserted.
      * @param bool $upsert Whether to perform an upsert operation (default is false).
+     * @param bool $handleUpsertIgnore Whether to get the uuid of stored (:doc - (ignoredColumn)) on conflict in the
+     * ignoredColumn. See $upsertIgnore. This is typically usefull when you want to prevent generating new rows with
+     * the same doc under different uuids. To achieve this, a nonce column generated as md5(doc - 'uuid') holds the
+     * md5 hash of the doc without the uuid and prevents duplicate doc entries under different uuids. Flipping
+     * $handleUpsertIgnore to true would cause create($json, true, true) to return the same uuid stored in database on
+     * a) insert of a doc
+     * b) re-insert of the doc while providing a different uuid (data arent updated, original/stored uuid is returned)
+     * c] update the doc having the same uuid
+     *
      * @return string The UUID of the newly created record.
      */
-    public function create(array $doc, $upsert = false): string
+    public function create(array $doc, $upsert = false, $handleUpsertIgnore = false): mixed
     {
         $uuid = $doc['uuid'] ?? $this->uuid();
         $doc = $this->toJson($doc, $uuid);
         $cond = $upsert ? $this->upsertString : "";
+        $cond .= " RETURNING uuid";
         try {
             $this->stmt = $this->pdo->prepare("INSERT INTO {$this->schema}.{$this->table} ({$this->dataColumn}) VALUES (:doc) {$cond}");
             $this->stmt->bindParam(':doc', $doc);
             $this->stmt->execute();
         } catch (\Exception $e) {
             if ($upsert) $this->handleUpsertException($e);
+            if ($upsert && $handleUpsertIgnore) {
+                $this->stmt = $this->pdo->prepare("SELECT uuid FROM {$this->schema}.{$this->table} WHERE nonce = decode(md5((:doc::jsonb - 'uuid')::text), 'hex')");
+                $this->stmt->bindParam(':doc', $doc);
+                $this->stmt->execute();
+            }
         }
-        return $uuid;
+        return $this->stmt->fetchColumn();
     }
+
 
     /**
      * Inserts or upserts multiple JSON documents into the database. Each document must contain a uuid.
