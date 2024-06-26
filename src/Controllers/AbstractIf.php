@@ -115,6 +115,45 @@ abstract class AbstractIf extends AbstractService
         return $uuid;
     }
 
+    /**
+     * Cache valid action responses
+     *
+     * This method inserts a new record into the `if__actions_valid_response_cache` table. If a record with the same
+     * nonce already exists, it updates the `req_at` timestamp and increments the `res_replays` counter.
+     *
+     * The `nonce` is a MD5 hash of the concatenation of `action_uuid`, `req_payload`, `req_params`, `res_payload`
+     * and `res_id`.
+     *
+     * @param string $actionUUID The UUID of the action.
+     * @param string $reqParams The request parameters as a string (leave empty if none provided).
+     * @param string $reqPayload The request payload as a JSON formatted string (leave empty if none provided).
+     * @param string $resId The response ID (leave empty if none provided).
+     * @param string $resPayload The response payload in JSON format (leave empty if none provided).
+     *
+     * @return mixed Returns the UUID of the `action_uuid`, `req_payload`, `req_params`, `res_payload` combination.
+     *
+     * @throws \PDOException If there is a database error.
+     */
+    public function cacheValidActionsResponse(string $actionUUID, string $reqParams = "", string $reqPayload = "", string $resId = "", string $resPayload = ""): string
+    {
+        $sql = "INSERT INTO {$this->deployments->schema}.if__actions_valid_response_cache 
+            (action_uuid, req_payload, req_params, res_payload, res_id) 
+            VALUES 
+            (:actionUUID, :reqPayload, :reqParams, :resPayload, :resId) 
+            ON CONFLICT (nonce) DO UPDATE SET 
+                req_at = CURRENT_TIMESTAMP,
+                res_replays = if__actions_valid_response_cache.res_replays + 1 
+            WHERE if__actions_valid_response_cache.nonce = EXCLUDED.nonce
+            RETURNING uuid";
+        $stmt = $this->deployments->pdo->prepare($sql);
+        $stmt->bindParam(':actionUUID', $actionUUID);
+        $stmt->bindParam(':reqPayload', $reqPayload);
+        $stmt->bindParam(':reqParams', $reqParams);
+        $stmt->bindParam(':resPayload', $resPayload);
+        $stmt->bindParam(':resId', $resId);
+        $stmt->execute();
+        return $stmt->fetchColumn();
+    }
 
     /**
      * Returns a list of endpoints within a deployments and creates/updates actions (the deployment, request path

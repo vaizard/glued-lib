@@ -30,7 +30,7 @@ abstract class GenericSql
     public string $uuidColumn = 'uuid';
 
     /** @var string The schema name for database tables. */
-    protected string $schema = 'glued';
+    public string $schema = 'glued';
 
     /** @var string The table name for database queries. */
     protected string $table;
@@ -39,7 +39,7 @@ abstract class GenericSql
     protected array $wheres = [];
 
     /** @var array An array of columns with a unique constraint other then uuid to ignore during upsert operations. */
-    protected array $upsertIgnore = ['(nonce)'];
+    public array $upsertIgnore = ['(nonce)'];
 
     /** @var string The string to append to the query to change an insert into an upsert. */
     protected string $upsertString = "
@@ -96,7 +96,7 @@ abstract class GenericSql
      * @param \Exception $e The exception thrown during the upsert operation.
      * @throws \Exception If the exception code is not "23505" or if the upsertIgnore conditions are not met.
      */
-    private function handleUpsertException($e)
+    public function handleUpsertException($e)
     {
         if ($e->getCode() === "23505" && count(array_filter($this->upsertIgnore, function($s) use ($e) {
                 return strpos($e->getMessage(), $s) !== false;
