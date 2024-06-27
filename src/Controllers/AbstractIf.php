@@ -134,7 +134,7 @@ abstract class AbstractIf extends AbstractService
      *
      * @throws \PDOException If there is a database error.
      */
-    public function cacheValidActionsResponse(string $actionUUID, string $reqParams = "", string $reqPayload = "", string $resId = "", string $resPayload = ""): string
+    public function cacheValidActionsResponse(string $actionUUID, string $reqParams = "", string $reqPayload = "", string $fid = ""): string
     {
         $sql = "INSERT INTO {$this->deployments->schema}.if__actions_valid_response_cache 
             (action_uuid, req_payload, req_params, res_payload, res_id) 
@@ -150,7 +150,7 @@ abstract class AbstractIf extends AbstractService
         $stmt->bindParam(':reqPayload', $reqPayload);
         $stmt->bindParam(':reqParams', $reqParams);
         $stmt->bindParam(':resPayload', $resPayload);
-        $stmt->bindParam(':resId', $resId);
+        $stmt->bindParam(':fid', $fid);
         $stmt->execute();
         return $stmt->fetchColumn();
     }
