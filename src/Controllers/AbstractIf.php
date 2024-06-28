@@ -127,24 +127,28 @@ abstract class AbstractIf extends AbstractService
      * @param string $actionUUID The UUID of the action.
      * @param string $reqParams The request parameters as a string (leave empty if none provided).
      * @param string $reqPayload The request payload as a JSON formatted string (leave empty if none provided).
-     * @param string $resId The response ID (leave empty if none provided).
      * @param string $resPayload The response payload in JSON format (leave empty if none provided).
+     * @param string $fid The foreign ID of the request (leave empty if none provided).
      *
      * @return mixed Returns the UUID of the `action_uuid`, `req_payload`, `req_params`, `res_payload` combination.
      *
      * @throws \PDOException If there is a database error.
      */
-    public function cacheValidActionsResponse(string $actionUUID, string $reqParams = "", string $reqPayload = "", string $resPayload = "", string $fid = ""): string
+    public function cacheValidActionsResponse(string $actionUUID, array $reqParams = [], array $reqPayload = [], array $resPayload = [], string $fid = ""): string
     {
-        $sql = "INSERT INTO {$this->deployments->schema}.if__actions_valid_response_cache 
-            (action_uuid, req_payload, req_params, res_payload, res_id) 
-            VALUES 
-            (:actionUUID, :reqPayload, :reqParams, :resPayload, :resId) 
-            ON CONFLICT (nonce) DO UPDATE SET 
-                req_at = CURRENT_TIMESTAMP,
-                res_replays = if__actions_valid_response_cache.res_replays + 1 
-            WHERE if__actions_valid_response_cache.nonce = EXCLUDED.nonce
-            RETURNING uuid";
+        $reqParams = json_encode($reqParams);
+        $reqPayload = json_encode($reqPayload);
+        $resPayload = json_encode($resPayload);
+        $sql = <<<EOL
+        INSERT INTO {$this->deployments->schema}.if__actions_valid_response_cache 
+        (action_uuid, req_payload, req_params, res_payload, fid) 
+        VALUES 
+        (:actionUUID, :reqPayload::jsonb, :reqParams::jsonb, :resPayload::jsonb, :fid) 
+        ON CONFLICT (nonce) DO UPDATE SET                           
+            req_at = CURRENT_TIMESTAMP,
+            res_replays = if__actions_valid_response_cache.res_replays + 1 
+        RETURNING encode(nonce,'hex')
+        EOL;
         $stmt = $this->deployments->pdo->prepare($sql);
         $stmt->bindParam(':actionUUID', $actionUUID);
         $stmt->bindParam(':reqPayload', $reqPayload);
