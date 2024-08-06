@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace Glued\Lib\Controllers;
 
 use Exception;
+use Glued\Lib\Exceptions\ExtendedException;
+use Opis\JsonSchema\Errors\ErrorFormatter;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Symfony\Component\Yaml\Yaml;
@@ -80,6 +82,21 @@ abstract class AbstractService extends AbstractBlank
             return $response->withJson($check);
         }
         return $response->withJson($check);
+    }
+
+    public function validateJsonRequest(Request $request, Response $response, $schema): mixed
+    {
+        if (($request->getHeader('Content-Type')[0] ?? '') != 'application/json') { throw new \Exception('Content-Type header missing or not set to `application/json`.', 400); };
+        $doc = json_decode(json_encode($request->getParsedBody()));
+        $validation = $this->validator->validate((object) $doc, $schema);
+        if ($validation->isValid()) { $res = $doc; }
+        if ($validation->hasError()) {
+            $formatter = new ErrorFormatter();
+            $error = $validation->error();
+            $res = $formatter->formatOutput($error, "basic");
+            throw new ExtendedException('Json not valid', 400, details: $res);
+        }
+        return $doc;
     }
 
 }
