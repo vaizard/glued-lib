@@ -84,17 +84,39 @@ abstract class AbstractService extends AbstractBlank
         return $response->withJson($check);
     }
 
-    public function validateJsonRequest(Request $request, Response $response, $schema): mixed
+    /**
+     * Validates the JSON request body against a given JSON schema and returns the parsed body.
+     *
+     * This method performs the following steps:
+     * 1. Checks if the `Content-Type` header is set to `application/json`. If not, throws an exception.
+     * 2. Parses the request body into a JSON object.
+     * 3. If a schema is provided, validates the parsed JSON object against the schema using a validator.
+     * 4. If the validation passes, returns the parsed JSON object.
+     * 5. If the validation fails, formats the validation errors and throws an exception with the error details.
+     *
+     * @param Request  $request  The PSR-7 Request object containing the request data.
+     * @param Response $response The PSR-7 Response object, unused in this method.
+     * @param mixed    $schema   The JSON schema to validate against. If false, skips validation.
+     *
+     * @return object The validated and parsed JSON object from the request body.
+     *
+     * @throws Exception If the `Content-Type` header is not `application/json`.
+     * @throws ExtendedException If the JSON body is invalid according to the provided schema, including validation error details.
+     */
+
+    public function getValidatedRequestBody(Request $request, Response $response, $schema = false): object
     {
         if (($request->getHeader('Content-Type')[0] ?? '') != 'application/json') { throw new \Exception('Content-Type header missing or not set to `application/json`.', 400); };
         $doc = json_decode(json_encode($request->getParsedBody()));
-        $validation = $this->validator->validate((object) $doc, $schema);
-        if ($validation->isValid()) { $res = $doc; }
-        if ($validation->hasError()) {
-            $formatter = new ErrorFormatter();
-            $error = $validation->error();
-            $res = $formatter->formatOutput($error, "basic");
-            throw new ExtendedException('Json not valid', 400, details: $res);
+        if (!$schema) {
+            $validation = $this->validator->validate((object) $doc, $schema);
+            if ($validation->isValid()) { $res = $doc; }
+            if ($validation->hasError()) {
+                $formatter = new ErrorFormatter();
+                $error = $validation->error();
+                $res = $formatter->formatOutput($error, "basic");
+                throw new ExtendedException('Schema validation failed.', 400, details: $res);
+            }
         }
         return $doc;
     }
