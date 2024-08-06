@@ -33,7 +33,7 @@ abstract class GenericSql
     public string $schema = 'glued';
 
     /** @var string The table name for database queries. */
-    protected string $table;
+    public string $table;
 
     /** @var array An array of WHERE conditions for the getAll() method. */
     protected array $wheres = [];
