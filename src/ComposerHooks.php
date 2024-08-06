@@ -6,7 +6,6 @@ use Composer\Script\Event;
 use Dotenv\Dotenv;
 use Glued\Lib\Crypto;
 use Grasmash\YamlExpander\YamlExpander;
-use mysql_xdevapi\Exception;
 use PharData;
 use Psr\Log\NullLogger;
 use ParagonIE\CSPBuilder\CSPBuilder;
@@ -138,8 +137,8 @@ class ComposerHooks
     }
 
 
-public static function generateNginx(): void
-{
+    public static function generateNginx(): void
+    {
         $settings = self::getSettings();
         $comment = <<<EOT
         # NOTE that when this file is found under /etc/nginx
@@ -185,16 +184,16 @@ public static function generateNginx(): void
 
        
         $origins = $settings['nginx']['cors']['origin'];
-        if (!is_array($settings['nginx']['cors']['origin'])) { 
+        if (!is_array($settings['nginx']['cors']['origin'])) {
             $origins = [];
-            $origins[0] = $settings['nginx']['cors']['origin']; 
+            $origins[0] = $settings['nginx']['cors']['origin'];
         }
 
         $output  = "map_hash_bucket_size 512;".PHP_EOL;
         $output .= 'map $http_origin $origin_allowed {'.PHP_EOL;
         $output .= "    default 0; # Origin not allowed fallback".PHP_EOL;
         foreach ($origins as $o) {
-        $output .= "    ".$o." 1; # Allowed origin".PHP_EOL;
+            $output .= "    ".$o." 1; # Allowed origin".PHP_EOL;
         }
         $output .= "    '' 2; # Special case for missing Origin header".PHP_EOL;
         $output .= "}".PHP_EOL.PHP_EOL;
@@ -247,18 +246,21 @@ public static function generateNginx(): void
         echo "[INFO] Ensuring paths exist and are writable" . PHP_EOL;
         $oldumask = umask(0);
         foreach ($paths as $path) {
-          if (!is_dir($path)) {
-            echo "[WARN] '.$path.' not found. Attempting to create ... ";
-              if (!mkdir($path, 0777, true)) {
-                  die('failed.'. PHP_EOL .'[FAIL] Failed to create directories.' . PHP_EOL . PHP_EOL);
-              }
-            echo "ok." . PHP_EOL;
-          }
+            if (!is_dir($path)) {
+                echo "[WARN] '.$path.' not found. Attempting to create ... ";
+                if (!mkdir($path, 0777, true)) {
+                    die('failed.'. PHP_EOL .'[FAIL] Failed to create directories.' . PHP_EOL . PHP_EOL);
+                }
+                echo "ok." . PHP_EOL;
+            }
         }
 
         $openApiFile = $_ENV['DATAPATH'] . "/" . basename(__ROOT__) . "/cache/openapi.yaml";
         $routesFile = $_ENV['DATAPATH'] . "/" . basename(__ROOT__) . "/cache/routes.yaml";
-        echo "[INFO] (re)building service routes cache from {$openApiFile} . PHP_EOL";
+        echo "[INFO] (re)building service routes cache from OpenAPI" . PHP_EOL;
+        print ">>>>>> OpenAPI source: ".$openApiFile. "\n";
+        print ">>>>>> Routes target: ".$routesFile. "\n";
+
         try {
             self::openApiToRoutes($openApiFile, $routesFile);
         } catch (\Exception $e) {
