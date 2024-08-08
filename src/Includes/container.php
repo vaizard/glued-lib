@@ -148,6 +148,11 @@ $container->set('logger', function (Container $c)
     return $logger;
 });
 
+$container->set('notify', function (Container $c) {
+    // TODO cleanup codebase from Crypto initialization
+    return new Glued\Lib\Notify($c->get('settings'), $c->get('logger'));
+});
+
 $container->set('transform', function () {
     return new ArrayTransformer();
 });
