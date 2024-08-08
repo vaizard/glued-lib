@@ -48,7 +48,7 @@ abstract class GenericSql
             updated_at = CURRENT_TIMESTAMP
     ";
 
-    public string $orderBy;
+    public string $orderBy = "";
 
 
     public function __construct(PDO $pdo, string $table)
