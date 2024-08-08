@@ -216,7 +216,7 @@ abstract class GenericSql
      */
     public function get(string $uuid): bool | array
     {
-        $query = "SELECT {$this->selectModifier} {$this->dataColumn} FROM {$this->schema}.{$this->table} WHERE {$this->uuidColumn} = :uuid {$this->orderBy}";
+        $query = "SELECT {$this->selectModifier} {$this->dataColumn} FROM {$this->schema}.{$this->table} WHERE {$this->uuidColumn} = :uuid";
         $query .= !empty($this->orderBy) ? " ORDER BY {$this->orderBy}" : '';
         $this->stmt = $this->pdo->prepare($query);
         $this->stmt->bindParam(':uuid', $uuid);
