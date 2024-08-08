@@ -48,6 +48,9 @@ abstract class GenericSql
             updated_at = CURRENT_TIMESTAMP
     ";
 
+    public string $orderBy;
+
+
     public function __construct(PDO $pdo, string $table)
     {
         $this->pdo = $pdo;
@@ -213,7 +216,9 @@ abstract class GenericSql
      */
     public function get(string $uuid): bool | array
     {
-        $this->stmt = $this->pdo->prepare("SELECT {$this->selectModifier} {$this->dataColumn} FROM {$this->schema}.{$this->table} WHERE {$this->uuidColumn} = :uuid");
+        $query = "SELECT {$this->selectModifier} {$this->dataColumn} FROM {$this->schema}.{$this->table} WHERE {$this->uuidColumn} = :uuid {$this->orderBy}";
+        $query .= !empty($this->orderBy) ? " ORDER BY {$this->orderBy}" : '';
+        $this->stmt = $this->pdo->prepare($query);
         $this->stmt->bindParam(':uuid', $uuid);
         $this->stmt->execute();
         $res = $this->stmt->fetchColumn();
@@ -278,6 +283,7 @@ abstract class GenericSql
             foreach ($this->wheres as $c) { $conds[] = "{$c['column']} {$c['condition']} :" . md5($c['column']); }
             $query .= " WHERE " . implode(" {$c['logicalOperator']} ", $conds);
         }
+        $query .= !empty($this->orderBy) ? " ORDER BY {$this->orderBy}" : '';
         $this->stmt = $this->pdo->prepare($query);
         if (!empty($this->wheres)) {
             foreach ($this->wheres as $c) { $this->stmt->bindValue(":" . md5($c['column']), $c['value']); }
