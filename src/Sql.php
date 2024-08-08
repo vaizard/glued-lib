@@ -42,7 +42,7 @@ abstract class GenericSql
     public array $upsertIgnore = ['(nonce)'];
 
     /** @var string The string to append to the query to change an insert into an upsert. */
-    protected string $upsertString = "
+    public string $upsertString = "
         ON CONFLICT (uuid) DO UPDATE
         SET doc = EXCLUDED.doc,
             updated_at = CURRENT_TIMESTAMP
