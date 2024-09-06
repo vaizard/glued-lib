@@ -157,7 +157,7 @@ $container->set('transform', function () {
     return new ArrayTransformer();
 });
 
-$container->set('jsonvalidator', function () {
+$container->set('validator', function () {
     return new Validator;
 });
 
