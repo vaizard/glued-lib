@@ -108,7 +108,7 @@ abstract class AbstractService extends AbstractBlank
     {
         if (($request->getHeader('Content-Type')[0] ?? '') != 'application/json') { throw new \Exception('Content-Type header missing or not set to `application/json`.', 400); };
         $doc = json_decode(json_encode($request->getParsedBody()));
-        if (!$schema) {
+        if ($schema !== false) {
             $validation = $this->validator->validate((object) $doc, $schema);
             if ($validation->isValid()) { $res = $doc; }
             if ($validation->hasError()) {
