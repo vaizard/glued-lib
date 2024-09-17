@@ -30,7 +30,8 @@
 		"symfony/telegram-notifier": "^6.4",
 		"symfony/mailer": "^6",
 		"paragonie/csp-builder": "^3",
-		"opis/json-schema": "^2.3"
+		"opis/json-schema": "^2.3",
+		"ramsey/uuid": "^4.7"
 	},
 	"require-dev": {
 		"ergebnis/composer-normalize": "^2"
