@@ -75,7 +75,7 @@ $container->set('settings', function () {
 });
 
 $container->set('uuid', function () {
-    return Uuid::uuid4()->toText();
+    return Uuid::uuid4()->toString();
 });
 
 $container->set('pg', function (Container $c) {
