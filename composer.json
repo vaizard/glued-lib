@@ -10,6 +10,7 @@
 		"php": "^8",
 		"ext-bcmath": "*",
 		"ext-curl": "*",
+		"ext-gmp": "*",
 		"ext-json": "*",
 		"ext-pdo": "*",
 		"ext-yaml": "*",
