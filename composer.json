@@ -15,7 +15,7 @@
 		"ext-pdo": "*",
 		"ext-yaml": "*",
 		"grasmash/yaml-expander": "^3",
-		"middlewares/utils": "^3.0",
+		"middlewares/utils": "^4.0",
 		"psr/http-server-middleware": "^1.0",
 		"php-di/php-di": "^7",
 		"monolog/monolog": "^3",
