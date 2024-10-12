@@ -140,8 +140,14 @@ php:
         10031:  ${glued.datapath}/cache/cookies.txt # CURLOPT_COOKIEFILE
 
 oidc:
-    server: ${glued.protocol}${glued.identity}
-    realm: ${env.IDENTITY_REALM}
+    server:     ${glued.protocol}${glued.identity}
+    realm:      ${env.IDENTITY_REALM}
+    issuer:     ${oidc.uri.base}/realms/${oidc.realm}
+    admin:      ${oidc.uri.base}/admin/realms/${oidc.realm} # consider deprecation
+    discovery:  ${oidc.uri.realm}/.well-known/openid-configuration
+    ttl:        300 # discovery cache ttl
+    redirect:   ${glued.frontend} # consider deprecation
+    login:      ${glued.frontend} # consider deprecation
     client:
         admin:
             id: ${env.IDENTITY_ADMIN_ID}
@@ -152,18 +158,6 @@ oidc:
             secret: ${env.IDENTITY_CONFIDENTIAL_SECRET}
         public:
             id: ${env.IDENTITY_PUBLIC_ID}
-    uri:
-        base:       ${oidc.server}
-        realm:      ${oidc.uri.base}/realms/${oidc.realm}
-        admin:      ${oidc.uri.base}/admin/realms/${oidc.realm}
-        auth:       ${oidc.uri.realm}/protocol/openid-connect/auth
-        token:      ${oidc.uri.realm}/protocol/openid-connect/token
-        user:       ${oidc.uri.realm}/protocol/openid-connect/userinfo
-        logout:     ${oidc.uri.realm}/protocol/openid-connect/logout
-        jwks:       ${oidc.uri.realm}/protocol/openid-connect/certs
-        discovery:  ${oidc.uri.realm}/.well-known/openid-configuration
-        redirect:   ${glued.frontend}
-        login:      ${glued.frontend}
     header: Authorization
     regexp: '/Bearer\s+(.*)$/i'
     cookie: token
