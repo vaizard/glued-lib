@@ -142,9 +142,9 @@ php:
 oidc:
     server:     ${glued.protocol}${glued.identity}
     realm:      ${env.IDENTITY_REALM}
-    issuer:     ${oidc.uri.server}/realms/${oidc.realm}
-    admin:      ${oidc.uri.server}/admin/realms/${oidc.realm} # consider deprecation
-    discovery:  ${oidc.uri.issuer}/.well-known/openid-configuration
+    issuer:     ${oidc.server}/realms/${oidc.realm}
+    admin:      ${oidc.server}/admin/realms/${oidc.realm} # consider deprecation
+    discovery:  ${oidc.issuer}/.well-known/openid-configuration
     ttl:        300 # discovery cache ttl
     redirect:   ${glued.frontend} # consider deprecation
     login:      ${glued.frontend} # consider deprecation
