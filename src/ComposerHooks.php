@@ -221,6 +221,10 @@ class ComposerHooks
         file_put_contents('/etc/nginx/snippets/server/generated_cors_headers.conf', $comment.$output);
     }
 
+    public static function getEnv(Event $event): void
+    {
+        print_r($_ENV);
+    }
 
     public static function configTool(Event $event): void
     {
