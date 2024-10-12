@@ -232,6 +232,16 @@ class ComposerHooks
         // Init vars and load .env file. Don't override existing $_ENV values. If GLUED_PROD = 1,
         // rely purely on $_ENV and don't load the .env file (which is intended only
         // for development) to improve performance.
+        if (!isset($_ENV['GLUED_PROD'])) {
+            echo "[INFO] GLUED_PROD env var not set, loading the `" . __ROOT__ ."/.env` file." . PHP_EOL;
+            $dotenv = Dotenv::createImmutable(__ROOT__);
+            $dotenv->safeLoad();
+        } else {
+            echo "[INFO] GLUED_PROD env var set, ignoring the `.env` file." . PHP_EOL;
+        }
+        print_r($_ENV);
+
+        echo "test";
         self::loadEnv();
         print_r($_ENV);
     }
