@@ -153,7 +153,7 @@ oidc:
         public:
             id: ${env.IDENTITY_PUBLIC_ID}
     uri:
-        base:       ${oidc.server}/auth
+        base:       ${oidc.server}
         realm:      ${oidc.uri.base}/realms/${oidc.realm}
         admin:      ${oidc.uri.base}/admin/realms/${oidc.realm}
         auth:       ${oidc.uri.realm}/protocol/openid-connect/auth
