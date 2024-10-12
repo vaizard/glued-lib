@@ -72,30 +72,28 @@ class ComposerHooks
 
     public static function getSettings(): array
     {
-        $ret    = [];
-        $routes = [];
-        $seed   = [
-            'ROOTPATH' => __ROOT__,
-            'USERVICE' => basename(__ROOT__)
-        ];
+        $ret = $routes = $config = [];
+        $seed = ['ROOTPATH' => __ROOT__, 'USERVICE' => basename(__ROOT__)];
 
-        self::loadEnv();
+        // Load environment variables or print info
+        empty($_ENV['GLUED_PROD'])
+            ? (Dotenv::createImmutable(__ROOT__)->safeLoad() && print("[INFO] GLUED_PROD not set, loading `" . __ROOT__ ."/.env`" . PHP_EOL))
+            : print("[INFO] GLUED_PROD set, ignoring `" . __ROOT__ ."/.env`" . PHP_EOL);
+
+        // Validate necessary environment variables
         $hostnames = php_uname('n').' '.gethostbyname(php_uname('n')).' '.($_SERVER['SERVER_NAME'] ?? '');
         (!isset($_ENV['HOSTNAME']) or $_ENV['HOSTNAME']=="") && die('[FAIL] hostname env variable not set or is empty. Suggestions: ' .$hostnames . PHP_EOL . PHP_EOL);
         (!isset($_ENV['DATAPATH'])) && die('[FAIL] DATAPATH env variable not set.' . PHP_EOL . PHP_EOL);
         (!isset($_ENV['IDENTITY'])) && die('[FAIL] IDENTITY env variable not set.' . PHP_EOL . PHP_EOL);
+
+        // Merge environment variables
         $refs['env'] = array_merge($seed, $_ENV);
 
-
-        // Init yaml parsing
+        // Init yaml parsing, load and parse the default yaml config.
         $class_sy = new Yaml;
         $class_ye = new YamlExpander(new NullLogger());
-
-        // Load and parse the default yaml config.
-        $config  = [];
-        $files   = [];
-        $files[] = __ROOT__ . '/vendor/vaizard/glued-lib/src/defaults.yaml';
-        $files   = array_merge($files, glob($refs['env']['DATAPATH'] . '/*/config/*.yaml'));
+        $files = [ __ROOT__ . '/vendor/vaizard/glued-lib/src/defaults.yaml'] ;
+        $files = array_merge($files, glob($refs['env']['DATAPATH'] . '/*/config/*.yaml'));
 
         foreach ($files as $file) {
             try {
@@ -216,44 +214,26 @@ class ComposerHooks
         file_put_contents('/etc/nginx/snippets/server/generated_cors_headers.conf', $comment.$output);
     }
 
-    public static function loadEnv(): void
-    {
-        if (!isset($_ENV['GLUED_PROD'])) {
-            echo "[INFO] GLUED_PROD env var not set, loading the `" . __ROOT__ ."/.env` file." . PHP_EOL;
-            $dotenv = Dotenv::createImmutable(__ROOT__);
-            $dotenv->safeLoad();
-        } else {
-            echo "[INFO] GLUED_PROD env var set, ignoring the `.env` file." . PHP_EOL;
-        }
-    }
 
     public static function getEnv(Event $event): void
     {
         // Init vars and load .env file. Don't override existing $_ENV values. If GLUED_PROD = 1,
         // rely purely on $_ENV and don't load the .env file (which is intended only
         // for development) to improve performance.
-        echo "test A";
-        self::loadEnv();
+
+        empty($_ENV['GLUED_PROD'])
+            ? (Dotenv::createImmutable(__ROOT__)->safeLoad() && print("[INFO] GLUED_PROD not set, loading `" . __ROOT__ ."/.env`" . PHP_EOL))
+            : print("[INFO] GLUED_PROD set, ignoring `" . __ROOT__ ."/.env`" . PHP_EOL);
         print_r($_ENV);
-
-        echo "test B";
-        if (!isset($_ENV['GLUED_PROD'])) {
-            echo "[INFO] GLUED_PROD env var not set, loading the `" . __ROOT__ ."/.env` file." . PHP_EOL;
-            $dotenv = Dotenv::createImmutable(__ROOT__);
-            $dotenv->safeLoad();
-        } else {
-            echo "[INFO] GLUED_PROD env var set, ignoring the `.env` file." . PHP_EOL;
-        }
-        print_r($_ENV);
-
-
     }
 
     public static function configTool(Event $event): void
     {
         $composer = $event->getComposer();
         echo "[NOTE] STARTING THE CONFIGURATION TESTING AND SETUP TOOL" . PHP_EOL . PHP_EOL;
-        self::loadEnv();
+        empty($_ENV['GLUED_PROD'])
+            ? (Dotenv::createImmutable(__ROOT__)->safeLoad() && print("[INFO] GLUED_PROD not set, loading `" . __ROOT__ ."/.env`" . PHP_EOL))
+            : print("[INFO] GLUED_PROD set, ignoring `" . __ROOT__ ."/.env`" . PHP_EOL);
         (!isset($_ENV['DATAPATH'])) && die('[FAIL] DATAPATH env variable not set' . PHP_EOL . PHP_EOL);
         (!isset($_ENV['IDENTITY'])) && die('[FAIL] IDENTITY env variable not set' . PHP_EOL . PHP_EOL);
         $paths[] = $_ENV['DATAPATH'].'/'.basename(__ROOT__).'/cache/psr16';
