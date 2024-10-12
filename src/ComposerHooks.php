@@ -223,6 +223,13 @@ class ComposerHooks
 
     public static function getEnv(Event $event): void
     {
+        if (!isset($_ENV['GLUED_PROD'])) {
+            echo "[INFO] GLUED_PROD env var not set, loading the `.env` file." . PHP_EOL;
+            $dotenv = Dotenv::createImmutable(__ROOT__);
+            $dotenv->safeLoad();
+        } else {
+            echo "[INFO] GLUED_PROD env var set, ignoring the `.env` file." . PHP_EOL;
+        }
         print_r($_ENV);
     }
 
@@ -236,10 +243,11 @@ class ComposerHooks
         // for development) to improve performance.
 
         if (!isset($_ENV['GLUED_PROD'])) {
+            echo "[INFO] GLUED_PROD env var not set, loading the `.env` file." . PHP_EOL;
             $dotenv = Dotenv::createImmutable(__ROOT__);
             $dotenv->safeLoad();
         } else {
-            echo "[INFO] GLUED_PROD set in environment or `.env`, ignoring the `.env` file." . PHP_EOL;
+            echo "[INFO] GLUED_PROD env var set, ignoring the `.env` file." . PHP_EOL;
         }
         (!isset($_ENV['DATAPATH'])) && die('[FAIL] DATAPATH env variable not set' . PHP_EOL . PHP_EOL);
         (!isset($_ENV['IDENTITY'])) && die('[FAIL] IDENTITY env variable not set' . PHP_EOL . PHP_EOL);
