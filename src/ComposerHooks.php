@@ -224,7 +224,7 @@ class ComposerHooks
     public static function getEnv(Event $event): void
     {
         if (!isset($_ENV['GLUED_PROD'])) {
-            echo "[INFO] GLUED_PROD env var not set, loading the `.env` file." . PHP_EOL;
+            echo "[INFO] GLUED_PROD env var not set, loading the" . __ROOT__ ."`.env` file." . PHP_EOL;
             $dotenv = Dotenv::createImmutable(__ROOT__);
             $dotenv->safeLoad();
         } else {
