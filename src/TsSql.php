@@ -16,7 +16,7 @@ use \PDO;
  * transformed representation internally compatible within glued.
  */
 
-class TsSql extends GenericSql {
+class TsSql extends Sql {
     /** @var \PDOStatement The PDOStatement instance for upstream database queries. */
     public $stmtUpstream;
 
