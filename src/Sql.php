@@ -88,7 +88,7 @@ abstract class GenericSql
     public function metaObject()
     {
         $columns = implode(", ", array_map(function($column) {
-            if ($column == 'nonce') { return "'$column', encode($column),'hex')"; }
+            if ($column == 'nonce') { return "'$column', encode($column,'hex')"; }
             return "'$column', $column";
         }, $this->metaColumns));
         return "jsonb_build_object({$columns})";
@@ -278,7 +278,7 @@ abstract class GenericSql
 
     public function getAll(): array
     {
-        $query = "SELECT {$this->selectModifier} {$this->dataColumn} FROM ( {$this->schema}.{$this->table} ) AS doc";
+        $query = "SELECT {$this->selectModifier} {$this->dataColumn} FROM {$this->schema}.{$this->table} AS doc";
         $conds = [];
         $params = [];
 
