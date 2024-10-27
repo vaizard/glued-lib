@@ -254,13 +254,13 @@ abstract class GenericSql
     public function patch(string $uuid, array | object $patch): object
     {
         if (empty($patch)) { throw new \Exception('Empty patch doc.', 400); }
-        $this->db->beginTransaction();
+        $this->pdo->beginTransaction();
         $doc = $this->get($uuid);
         if (!$doc) { throw new \Exception('Empty patch doc.', 400); }
         $patchHandler = new JsonMergePatch();
         $new = $patchHandler->apply($doc, $patch);
         $this->update($uuid,$new);
-        $this->db->commit();
+        $this->pdo->commit();
         return $new;
     }
 
