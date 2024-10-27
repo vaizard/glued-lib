@@ -251,7 +251,7 @@ abstract class GenericSql
         $this->stmt->execute();
     }
 
-    public function patch(string $uuid, array | object $patch): void
+    public function patch(string $uuid, array | object $patch): object
     {
         if (empty($patch)) { throw new \Exception('Empty patch doc.', 400); }
         $this->db->beginTransaction();
@@ -261,6 +261,7 @@ abstract class GenericSql
         $new = $patchHandler->apply($doc, $patch);
         $this->update($uuid,$new);
         $this->db->commit();
+        return $new;
     }
 
     /**
