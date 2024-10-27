@@ -210,12 +210,14 @@ class Utils
             if ($route->getName()) { $data[$i]['name'] = $route->getName(); }
             if ($data[$i]['name'] === $currentRoute) { $data[$i]['current'] = true; }
             if ($data[$i]['name'] != false) {
+                $server = $this->settings['routes'][$data[$i]['name']]['server'] ?? $this->settings['glued']['baseuri'];
                 try {
-                    $data[$i]['url'] = $this->settings['glued']['protocol'].$this->settings['glued']['hostname'].$this->routecollector->getRouteParser()->urlFor($data[$i]['name']);
+                    $data[$i]['url'] = $server.$this->routecollector->getRouteParser()->urlFor($data[$i]['name']);
                 } catch (\InvalidArgumentException $e) { $data[$i]['argsrequired'] = true; }
                 $data[$i]['label'] = $this->settings['routes'][$data[$i]['name']]['label'] ?? null;
                 $data[$i]['service'] = $this->settings['routes'][$data[$i]['name']]['service'] ?? null;
                 $data[$i]['dscr'] = $this->settings['routes'][$data[$i]['name']]['dscr'] ?? null;
+
             }
         }
         ksort($data, SORT_NATURAL);
