@@ -5,6 +5,7 @@ namespace Glued\Lib;
 
 use \PDO;
 use Ramsey\Uuid\Uuid;
+use Rs\Json\Merge\Patch as JsonMergePatch;
 
 abstract class GenericSql
 {
@@ -248,6 +249,17 @@ abstract class GenericSql
         $this->stmt->bindParam(':doc', $doc);
         $this->stmt->bindParam(':uuid', $uuid);
         $this->stmt->execute();
+    }
+
+    public function patch(string $uuid, array | object $patch): void
+    {
+        $this->db->beginTransaction();
+        $doc = $this->get($uuid);
+        $patchHandler = new JsonMergePatch();
+        if (empty($patch)) { throw new \Exception('Empty patch doc.', 400); }
+        $new = $patchHandler->apply($doc, $patch);
+        $this->update($uuid,$new);
+        $this->db->commit();
     }
 
     /**

@@ -32,7 +32,8 @@
 		"symfony/mailer": "^6",
 		"paragonie/csp-builder": "^3",
 		"opis/json-schema": "^2.3",
-		"ramsey/uuid": "^4.7"
+		"ramsey/uuid": "^4.7",
+		"stolt/json-merge-patch": "^2.0"
 	},
 	"require-dev": {
 		"ergebnis/composer-normalize": "^2"
