@@ -258,7 +258,7 @@ abstract class GenericSql
         $doc = $this->get($uuid);
         if (!$doc) { throw new \Exception('Empty patch doc.', 400); }
         $patchHandler = new JsonMergePatch();
-        $new = $patchHandler->apply($doc, $patch);
+        $new = $patchHandler->apply((object) $doc, (object) $patch);
         $this->update($uuid,$new);
         $this->pdo->commit();
         return $new;
