@@ -240,9 +240,9 @@ abstract class GenericSql
      * @return void
      * @throws \Exception If the UUID provided in $body doesn't match the UUID of the document being updated.
      */
-    public function update(string $uuid, $body): void
+    public function update(string $uuid, array | object $body): void
     {
-        if ($body['uuid'] !== $uuid) { throw new \Exception('Document UUID doesn\'t match update UUID.'); }
+        if (((array) $body)['uuid'] !== $uuid) { throw new \Exception('Document UUID doesn\'t match update UUID.'); }
         $doc = json_encode($body);
         $this->stmt = $this->pdo->prepare("UPDATE {$this->schema}.{$this->table} SET {$this->dataColumn} = :doc, updated_at = CURRENT_TIMESTAMP WHERE {$this->uuidColumn} = :uuid");
         $this->stmt->bindParam(':doc', $doc);
