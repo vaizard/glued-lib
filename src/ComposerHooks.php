@@ -56,13 +56,27 @@ class ComposerHooks
             if ($methods == []) { throw new \Exception("x-glued-method missing for {$path}"); }
             if (empty($details['x-glued-pathname'])) { throw new \Exception("x-glued-pathname missing for {$path}"); }
 
+            $serverUrl = $openapiArray['servers'][0]['url'];
+            $parsedUrl = parse_url($serverUrl);
+
+            if (isset($parsedUrl['scheme']) && isset($parsedUrl['host'])) {
+                // Extract the absolute path if a server is included in the URL
+                $absolutePath = $parsedUrl['path'] ?? '/';
+                $server = "{$parsedUrl['scheme']}://{$parsedUrl['host']}";
+            } else {
+                // Assume the URL is already an absolute path
+                $absolutePath = $serverUrl;
+                $server = null;
+            }
+
             $routes[$details['x-glued-pathname']] = [
-                'pattern' => $openapiArray['servers'][0]['url'] . $path,
+                'pattern' => $absolutePath . $path,
                 'label' => $details['get']['summary'],
                 'dscr' => $details['get']['description'],
                 'provides' => $details['x-glued-provides'] ?? throw new \Exception("x-glued-provides key missing for {$path}"),
                 'service' => $openapiArray['info']['x-glued-service'] ?? throw new \Exception("x-glued-service key missing for {$path}"),
-                'methods' => $methods
+                'methods' => $methods,
+                'server' => $server
             ];
         }
         if (!$routesFile) { return yaml_emit(['routes' => $routes], YAML_UTF8_ENCODING); }
