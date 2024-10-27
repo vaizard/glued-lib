@@ -236,7 +236,7 @@ abstract class GenericSql
      *  NOTE: To identify if a row was updated, use stmt->rowCount() to get the number of affected rows.
      *
      * @param string $uuid The UUID of the document to update.
-     * @param mixed $body The new data to update the document with.
+     * @param array | object $body The new data to update the document with.
      * @return void
      * @throws \Exception If the UUID provided in $body doesn't match the UUID of the document being updated.
      */
