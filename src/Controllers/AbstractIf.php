@@ -194,6 +194,87 @@ abstract class AbstractIf extends AbstractService
         return $response->withJson($res);
     }
 
+    public function __destruct()
+    {
+        foreach ($this->closePorts as $port) {
+            $this->terminateProcessOnPort($port);
+        }
+    }
+
+    private function getAvailablePort($startPort, $endPort) {
+        for ($port = $startPort; $port <= $endPort; $port++) {
+            if (!$this->isPortInUse($port)) {
+                return $port;
+            }
+        }
+        return false;
+    }
+
+    private function isPortInUse($port) {
+        $connection = @fsockopen('127.0.0.1', (int) $port, $errno, $errstr, 1);
+        if (is_resource($connection)) {
+            fclose($connection);
+            return true;
+        }
+        return false;
+    }
+
+    private function terminateProcessOnPort($port)
+    {
+        // Implementation to terminate the process on the given port
+        // This will vary depending on your operating system and setup
+
+        // Example for Unix-based systems:
+        $command = "lsof -i tcp:$port | grep LISTEN | awk '{print $2}' | xargs kill -9";
+        exec($command);
+    }
+
+
+
+    private function getSshTunnels(string $proxyHost, int $proxyPort, string $proxyUser, string $proxyPass, string $targetHost = '127.0.0.1', int $targetPort = 3306)
+    {
+        // List SSH tunnels and their details
+        $command = sprintf(
+            'bash -c \'lsof -P -n -c ssh -a -F p | while read -r pid; do ps -p ${pid:1} -o pid,args= | grep %s | grep %s ; done\'',
+            escapeshellarg("{$targetHost}:{$targetPort}"),
+            escapeshellarg($proxyHost)
+        );
+        exec($command, $output);
+        $tunnels = [];
+        foreach ($output as $line) {
+            if (preg_match('/^\s*(\d+)\s+(.*)/', $line, $matches)) {
+                if (preg_match('/-L\s+(\d+):' . preg_quote($targetHost, '/') . ':' . $targetPort . '/', $matches[2], $portMatch)) {
+                    $tunnels[] = [
+                        'port' => $portMatch[1], // Local port extracted from args
+                        'pid' => $matches[1],    // PID
+                        'args' => $matches[2],   // Full command arguments
+                    ];
+                }
+            }
+        }
+        return $tunnels;
+    }
+
+    private function createSshTunnel(string $proxyHost, int $proxyPort, string $proxyUser, string $proxyPass, string $targetHost = '127.0.0.1', int $targetPort = 3306, $localPortMin = 49152, $localPortMax = 49352 )
+    {
+
+        $availablePort = $this->getAvailablePort($localPortMin, $localPortMax);
+        ini_set("default_socket_timeout", 2);
+        $command = sprintf(
+            'sshpass -p %s ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=2 -o ServerAliveInterval=1 -f -N -L %d:%s:%d %s@%s -p %d',
+            escapeshellarg($proxyPass),
+            (int) $availablePort,
+            escapeshellarg($targetHost),
+            (int) $targetPort,
+            escapeshellarg($proxyUser),
+            escapeshellarg($proxyHost),
+            (int) $proxyPort
+        );
+        exec($command, $output, $return_var);
+        if ($return_var !== 0) { throw new \Exception("Failed to create SSH tunnel. Return code: $return_var", 500); }
+        $this->closePorts[] = $availablePort;
+        return $availablePort;
+    }
 
 
 }
