@@ -43,6 +43,7 @@ abstract class AbstractIf extends AbstractService
         $this->deployments = new \Glued\Lib\Sql($this->pg, 'if__deployments');
         $this->actions = new \Glued\Lib\Sql($this->pg, 'if__actions');
         $this->deployment = [];
+        $this->closePorts = [];
     }
 
 
