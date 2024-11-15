@@ -201,7 +201,7 @@ abstract class AbstractIf extends AbstractService
         }
     }
 
-    private function getAvailablePort($startPort, $endPort) {
+    public function getAvailablePort($startPort, $endPort) {
         for ($port = $startPort; $port <= $endPort; $port++) {
             if (!$this->isPortInUse($port)) {
                 return $port;
@@ -210,7 +210,7 @@ abstract class AbstractIf extends AbstractService
         return false;
     }
 
-    private function isPortInUse($port) {
+    public function isPortInUse($port) {
         $connection = @fsockopen('127.0.0.1', (int) $port, $errno, $errstr, 1);
         if (is_resource($connection)) {
             fclose($connection);
@@ -219,7 +219,7 @@ abstract class AbstractIf extends AbstractService
         return false;
     }
 
-    private function terminateProcessOnPort($port)
+    public function terminateProcessOnPort($port)
     {
         // Implementation to terminate the process on the given port
         // This will vary depending on your operating system and setup
@@ -231,7 +231,7 @@ abstract class AbstractIf extends AbstractService
 
 
 
-    private function getSshTunnels(string $proxyHost, int $proxyPort, string $proxyUser, string $proxyPass, string $targetHost = '127.0.0.1', int $targetPort = 3306)
+    public function getSshTunnels(string $proxyHost, int $proxyPort, string $proxyUser, string $proxyPass, string $targetHost = '127.0.0.1', int $targetPort = 3306)
     {
         // List SSH tunnels and their details
         $command = sprintf(
@@ -255,7 +255,7 @@ abstract class AbstractIf extends AbstractService
         return $tunnels;
     }
 
-    private function createSshTunnel(string $proxyHost, int $proxyPort, string $proxyUser, string $proxyPass, string $targetHost = '127.0.0.1', int $targetPort = 3306, $localPortMin = 49152, $localPortMax = 49352 )
+    public function createSshTunnel(string $proxyHost, int $proxyPort, string $proxyUser, string $proxyPass, string $targetHost = '127.0.0.1', int $targetPort = 3306, $localPortMin = 49152, $localPortMax = 49352 )
     {
 
         $availablePort = $this->getAvailablePort($localPortMin, $localPortMax);
