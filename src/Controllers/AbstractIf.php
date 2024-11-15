@@ -25,6 +25,11 @@ abstract class AbstractIf extends AbstractService
      */
     protected $actions;
 
+    /**
+     * @var array of ssh tunnelling ports to close
+     */
+    public array $closePorts;
+
 
     /**
      * Constructor, initializes the class with a given container, setting up the deployments
