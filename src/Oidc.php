@@ -137,6 +137,7 @@ class Oidc
         return $jwk;
     }
 
+
     public function fetchToken($request)
     {
         // Check for token in header and in the cookie
@@ -157,50 +158,69 @@ class Oidc
         throw new \Exception("Token not found.", 401);
     }
 
-
-    public function validateJwtToken(string $accessToken, $certs) {
+    public function parseToken(string $accessToken, $certs): array {
         try {
-            $decoded = [];
-            if ($accessToken === '') { { throw new \Exception('Raw JWT token is empty string.', 401); } }
+            if ($accessToken === '') {
+                throw new \Exception('Raw JWT token is an empty string.', 401);
+            }
+            // Instantiate the serializer manager, deserialize, load key set
+            $jwsSerializerManager = new JWSSerializerManager([new CompactSerializer()]);
+            $jws = $jwsSerializerManager->unserialize($accessToken);
+            $jwk = new JWKSet($certs);
+            $result = [
+                'claims' => json_decode($jws->getPayload(), true) ?? [],
+                'headers' => $jws->getSignature(0)->getProtectedHeader(),
+                'signatures' => $jws->countSignatures(),
+                'jws' => $jws,
+                'jwk' => $jwk,
+            ];
+            return $result;
+        } catch (\Exception $e) {
+            throw new \Exception('Failed to parse token: ' . $e->getMessage(), 401, $e);
+        }
+    }
 
-            // Instantiate the algorithm manager with required algorithms
+    /**
+     * Validates a JWT token by checking its signature, headers, and claims.
+     *
+     * @param object $jws The parsed JWS object.
+     * @param JWKSet $jwk The JWKSet containing the verification keys.
+     * @param array $claims The claims extracted from the token payload.
+     *
+     * @throws \Exception If the token's signature verification, header checks, or claim checks fail.
+     */
+    public function validateToken($jws, $jwk, $claims): void {
+        try {
+
+            // Verify signature
             $jwsVerifier = new JWSVerifier(new AlgorithmManager([
                 new RS256(),
                 new RS512(),
             ]));
+            if (!$jwsVerifier->verifyWithKeySet($jws, $jwk, 0)) {
+                throw new \Exception('Token signature verification failed');
+            }
 
-            // Instantiate ClaimCheckerManager with the required constraints
+            // Verify header
+            $headerCheckerManager = new HeaderCheckerManager(
+                [new AlgorithmChecker(['RS256', 'RS512'])],
+                [new JWSTokenSupport()]
+            );
+            $headerCheckerManager->check($jws, 0, ['alg', 'typ', 'kid']);
+
+            // Verify claims
             $claimCheckerManager = new ClaimCheckerManager([
                 new IssuedAtChecker(1000),
                 new NotBeforeChecker(1000),
                 new ExpirationTimeChecker(),
-                new IssuerChecker([ $this->config['realm'] ])
+                new IssuerChecker([$this->config['realm']])
             ]);
+            $claimCheckerManager->check($claims, ['iss', 'sub', 'aud', 'exp']);
 
-            // Set up the HeaderCheckerManager with required algorithms
-            $headerCheckerManager = new HeaderCheckerManager(
-                [ new AlgorithmChecker(['RS256', 'RS512']) ],
-                [ new JWSTokenSupport() ]
-            );
-
-            // Load the JWS (signature) and JWK (keys). NOTE that multiple signatures are supported for reasons explained here
-            // https://stackoverflow.com/questions/50031985/what-is-a-use-case-for-having-multiple-signatures-in-a-jws-that-uses-jws-json-se
-            // For simplicity, we intentionally pick the first signature (signatureIndex 0). This probably has security implications.
-            $jwsSerializerManager = new JWSSerializerManager([ new CompactSerializer() ]);
-            $jws = $jwsSerializerManager->unserialize($accessToken);
-            $jwk = new JWKSet($certs);
-            $r['claims'] = json_decode($jws->getPayload(), true) ?? [];
-            $r['headers'] = $jws->getSignature(0)->getProtectedHeader();
-            $r['signatures'] = $jws->countSignatures();
-
-            // Check stuff
-            if (!$jwsVerifier->verifyWithKeySet($jws, $jwk, 0)) {
-                throw new \Exception('Token signature verification failed');
-            }
-            $headerCheckerManager->check($jws, 0, ['alg', 'typ', 'kid']);
-            $claimCheckerManager->check($r['claims'], ['iss', 'sub', 'aud', 'exp']);
-        } catch (\Exception $e) { throw new \Exception($e->getMessage() . ' ' . $e->getCode(), 401, $e); }
-        return $r;
+        } catch (\Exception $e) {
+            throw new \Exception('Token validation failed: ' . $e->getMessage(), 401, $e);
+        }
     }
+
 }
 
