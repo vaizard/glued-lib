@@ -19,8 +19,6 @@ return function ($exception, $inspector) {
     if ($r['code'] == 410) { $http = '410 Gone'; }
 
     if ($short == "ExtendedException")      { $r['details'] = $exception->getDetails(); }
-    if ($short == "AuthJwtException")       { $http = '401 Unauthorized'; $r['datails'] = "Login at ".$settings['oidc']['uri']['login']; }
-    if ($short == "AuthTokenException")     { $http = '401 Unauthorized'; $r['datails'] = "Login at ".$settings['oidc']['uri']['login']; }
     if ($short == "HttpNotFoundException")  { $http = '404 Not Found'; $r['datails'] = "Try: " . $container->get('settings')['glued']['protocol'].$container->get('settings')['glued']['hostname'].$container->get('routecollector')->getRouteParser()->UrlFor('be_core_routes'); }
     if ($r['title'] == "mysqli_sql_exception") {
         $container->get('logger')->error("EXCEPTION HANDLER", [ "SQL query" => $container->get('db')->getLastQuery(), "Exception" => $r ]);
