@@ -59,7 +59,7 @@ class Oidc
      */
     public function fetchOidcConfiguration(array $oidc): array
     {
-        $cacheKey = "gluedOidcConfiguration:" . md5($this->config['discovery']);
+        $cacheKey = "gluedOidcConfiguration_" . md5($this->config['discovery']);
 
         // Attempt to retrieve cached discovery data
         $res = $this->cache->has($cacheKey)
@@ -95,7 +95,7 @@ class Oidc
      */
     public function fetchOidcJwks(string $jwksUri): array
     {
-        $cacheKey = "gluedOidcJwks:" . md5($this->config['discovery']);
+        $cacheKey = "gluedOidcJwks_" . md5($this->config['discovery']);
 
         // Attempt to retrieve cached JWKS data
         $jwks = $this->cache->has($cacheKey)
