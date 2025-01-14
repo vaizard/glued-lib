@@ -57,7 +57,7 @@ class Oidc
      * @throws \Exception If the discovery process fails or if the discovered
      *                     issuer does not match the configured issuer.
      */
-    private function fetchOidcConfiguration(array $oidc): array
+    public function fetchOidcConfiguration(array $oidc): array
     {
         $cacheKey = "gluedOidcConfiguration:" . md5($this->comnfig['discovery']);
 
@@ -201,7 +201,5 @@ class Oidc
         } catch (\Exception $e) { throw new \Exception($e->getMessage() . ' ' . $e->getCode(), 401, $e); }
         return $r;
     }
-
-
 }
 
