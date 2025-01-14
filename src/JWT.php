@@ -221,9 +221,9 @@ class JWT
                 new IssuedAtChecker(1000),
                 new NotBeforeChecker(1000),
                 new ExpirationTimeChecker(),
-                new IssuerChecker([$this->config['realm']])
+                new IssuerChecker([$this->oidc['realm']])
             ]);
-            $claimCheckerManager->check($this->claims, ['iss', 'sub', 'aud', 'exp']);
+            $claimCheckerManager->check($this->jwtClaims, ['iss', 'sub', 'aud', 'exp']);
 
         } catch (\Exception $e) {
             throw new \Exception('Token validation failed: ' . $e->getMessage(), 401, $e);
