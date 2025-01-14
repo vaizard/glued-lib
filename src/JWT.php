@@ -20,16 +20,23 @@ use Jose\Component\Signature\JWSTokenSupport;
 use Jose\Component\Signature\JWSVerifier;
 use Jose\Component\Signature\Serializer\CompactSerializer;
 use Jose\Component\Signature\Serializer\JWSSerializerManager;
+use Jose\Component\Signature\JWS;
 
 /**
  * Provides authentication and authorization methods
  */
 
-class Oidc
+class JWT
 {
-    protected $config;
+    protected $oidc;
     protected $cache;
     protected $utils;
+
+    private ?\Jose\Component\Signature\JWS $jws = null;
+    private ?\Jose\Component\Core\JWKSet $jwkSet = null;
+    private array $jwtClaims = [];
+    private array $jwtHeaders = [];
+    private int $signaturesCount = 0;
 
     /**
      * Constructor for OIDC-related functionality.
@@ -39,7 +46,7 @@ class Oidc
      * @param \Glued\Lib\Utils
      */
     public function __construct(array $oidcSettings, $cacheHandler, $utils) {
-        $this->config = $oidcSettings;
+        $this->oidc = $oidcSettings;
         $this->cache = $cacheHandler;
         $this->utils = $utils;
     }
@@ -59,7 +66,7 @@ class Oidc
      */
     public function fetchOidcConfiguration(array $oidc): array
     {
-        $cacheKey = "gluedOidcConfiguration_" . md5($this->config['discovery']);
+        $cacheKey = "gluedOidcConfiguration_" . md5($this->oidc['discovery']);
 
         // Attempt to retrieve cached discovery data
         $res = $this->cache->has($cacheKey)
@@ -95,7 +102,7 @@ class Oidc
      */
     public function fetchOidcJwks(string $jwksUri): array
     {
-        $cacheKey = "gluedOidcJwks_" . md5($this->config['discovery']);
+        $cacheKey = "gluedOidcJwks_" . md5($this->oidc['discovery']);
 
         // Attempt to retrieve cached JWKS data
         $jwks = $this->cache->has($cacheKey)
@@ -113,7 +120,7 @@ class Oidc
                 throw new \Exception("Identity server failed to return JWKS certificates.", 502);
             }
             // Cache the new JWKS data
-            $this->cache->set($cacheKey, $json, $this->config['ttl']);
+            $this->cache->set($cacheKey, $json, $this->oidc['ttl']);
         }
         return $jwks;
     }
@@ -141,13 +148,13 @@ class Oidc
     public function fetchToken($request)
     {
         // Check for token in header and in the cookie
-        $header = $request->getHeaderLine($this->config['header']);
-        if (!empty($header) && preg_match($this->config['regexp'], $header, $matches)) {
+        $header = $request->getHeaderLine($this->oidc['header']);
+        if (!empty($header) && preg_match($this->oidc['regexp'], $header, $matches)) {
             return $matches[1];
         }
 
-        $cookie = $request->getCookieParams()[$this->config['cookie']] ?? null;
-        if ($cookie && preg_match($this->config['regexp'], $cookie, $matches)) {
+        $cookie = $request->getCookieParams()[$this->oidc['cookie']] ?? null;
+        if ($cookie && preg_match($this->oidc['regexp'], $cookie, $matches)) {
             return $matches[1];
         }
 
@@ -158,55 +165,56 @@ class Oidc
         throw new \Exception("Token not found.", 401);
     }
 
-    public function parseToken(string $accessToken, $certs): array {
+
+    /**
+     * Parse the JWT token into an internal JWS and JWKSet representation,
+     * extracting claims, headers, etc. Use get methods to retrieve them.
+     */
+    public function parseToken(string $accessToken, array $certs): void
+    {
+        if ($accessToken === '') {
+            throw new \Exception('Raw JWT token is an empty string.', 401);
+        }
         try {
-            if ($accessToken === '') {
-                throw new \Exception('Raw JWT token is an empty string.', 401);
-            }
-            // Instantiate the serializer manager, deserialize, load key set
             $jwsSerializerManager = new JWSSerializerManager([new CompactSerializer()]);
-            $jws = $jwsSerializerManager->unserialize($accessToken);
-            $jwk = new JWKSet($certs);
-            $result = [
-                'claims' => json_decode($jws->getPayload(), true) ?? [],
-                'headers' => $jws->getSignature(0)->getProtectedHeader(),
-                'signatures' => $jws->countSignatures(),
-                'jws' => $jws,
-                'jwk' => $jwk,
-            ];
-            return $result;
+            $this->jws = $jwsSerializerManager->unserialize($accessToken);
+            $this->jwkSet = new JWKSet($certs);
+            $this->jwtClaims = json_decode($this->jws->getPayload(), true) ?? [];
+            $this->jwtHeaders = $this->jws->getSignature(0)->getProtectedHeader();
+            $this->signaturesCount = $this->jws->countSignatures();
         } catch (\Exception $e) {
             throw new \Exception('Failed to parse token: ' . $e->getMessage(), 401, $e);
         }
     }
 
     /**
-     * Validates a JWT token by checking its signature, headers, and claims.
-     *
-     * @param object $jws The parsed JWS object.
-     * @param JWKSet $jwk The JWKSet containing the verification keys.
-     * @param array $claims The claims extracted from the token payload.
-     *
-     * @throws \Exception If the token's signature verification, header checks, or claim checks fail.
+     * Validate the token (signature, headers, claims) using the internally stored JWS/JWKSet.
      */
-    public function validateToken($jws, $jwk, $claims): void {
-        try {
+    public function validateToken(): void
+    {
+        if (!$this->jws || !$this->jwkSet) {
+            throw new \Exception('No parsed token or key set available. Call parseToken() first.', 401);
+        }
 
+        try {
             // Verify signature
-            $jwsVerifier = new JWSVerifier(new AlgorithmManager([
-                new RS256(),
-                new RS512(),
-            ]));
-            if (!$jwsVerifier->verifyWithKeySet($jws, $jwk, 0)) {
-                throw new \Exception('Token signature verification failed');
+            $jwsVerifier = new JWSVerifier(
+                new AlgorithmManager([
+                    new RS256(),
+                    new RS512(),
+                ])
+            );
+
+            if (!$jwsVerifier->verifyWithKeySet($this->jws, $this->jwkSet, 0)) {
+                throw new \Exception('Token signature verification failed.');
             }
 
-            // Verify header
+            // Verify headers
             $headerCheckerManager = new HeaderCheckerManager(
                 [new AlgorithmChecker(['RS256', 'RS512'])],
                 [new JWSTokenSupport()]
             );
-            $headerCheckerManager->check($jws, 0, ['alg', 'typ', 'kid']);
+            $headerCheckerManager->check($this->jws, 0, ['alg', 'typ', 'kid']);
 
             // Verify claims
             $claimCheckerManager = new ClaimCheckerManager([
@@ -215,11 +223,51 @@ class Oidc
                 new ExpirationTimeChecker(),
                 new IssuerChecker([$this->config['realm']])
             ]);
-            $claimCheckerManager->check($claims, ['iss', 'sub', 'aud', 'exp']);
+            $claimCheckerManager->check($this->claims, ['iss', 'sub', 'aud', 'exp']);
 
         } catch (\Exception $e) {
             throw new \Exception('Token validation failed: ' . $e->getMessage(), 401, $e);
         }
+    }
+
+    /**
+     * Get the parsed claims.
+     */
+    public function getJwtClaims(): array
+    {
+        return $this->jwtClaims;
+    }
+
+    /**
+     * Get the parsed headers.
+     */
+    public function getJwtHeaders(): array
+    {
+        return $this->jwtHeaders;
+    }
+
+    /**
+     * Get the number of signatures on this token.
+     */
+    public function getSignaturesCount(): int
+    {
+        return $this->signaturesCount;
+    }
+
+    /**
+     * Get the loaded JWKSet.
+     */
+    public function getJwkSet(): ?JWKSet
+    {
+        return $this->jwkSet;
+    }
+
+    /**
+     * Get the underlying JWT (JWS) object.
+     */
+    public function getJws(): ?JWS
+    {
+        return $this->jws;
     }
 
 }
