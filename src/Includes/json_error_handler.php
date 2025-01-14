@@ -25,8 +25,6 @@ return function ($exception, $inspector) {
         $r['datails'] = "Query logged.";
     }
 
-
-
     header($_SERVER['SERVER_PROTOCOL'].' '.$http);
     echo json_encode($r, JSON_UNESCAPED_SLASHES);
     exit;
