@@ -158,9 +158,10 @@ class Oidc
     }
 
 
-    public function validateJwtToken($accessToken, $certs) {
+    public function validateJwtToken(string $accessToken, $certs) {
         try {
             $decoded = [];
+            if ($accessToken === '') { { throw new \Exception('Raw JWT token is empty string.', 401); } }
 
             // Instantiate the algorithm manager with required algorithms
             $jwsVerifier = new JWSVerifier(new AlgorithmManager([
