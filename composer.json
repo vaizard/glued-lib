@@ -18,7 +18,7 @@
 		"middlewares/utils": "^4.0",
 		"psr/http-server-middleware": "^1.0",
 		"php-di/php-di": "^7",
-		"monolog/monolog": "^3",
+		"monolog/monolog": "^3.8",
 		"phpfastcache/phpfastcache": "^9",
 		"psr/log": "^3",
 		"selective/transformer": "^1",
