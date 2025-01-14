@@ -59,7 +59,7 @@ class Oidc
      */
     public function fetchOidcConfiguration(array $oidc): array
     {
-        $cacheKey = "gluedOidcConfiguration:" . md5($this->comnfig['discovery']);
+        $cacheKey = "gluedOidcConfiguration:" . md5($this->config['discovery']);
 
         // Attempt to retrieve cached discovery data
         $res = $this->cache->has($cacheKey)
