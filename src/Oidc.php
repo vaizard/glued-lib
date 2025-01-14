@@ -173,7 +173,7 @@ class Oidc
                 new IssuedAtChecker(1000),
                 new NotBeforeChecker(1000),
                 new ExpirationTimeChecker(),
-                new IssuerChecker([ $this->config['uri']['realm'] ])
+                new IssuerChecker([ $this->config['realm'] ])
             ]);
 
             // Set up the HeaderCheckerManager with required algorithms
