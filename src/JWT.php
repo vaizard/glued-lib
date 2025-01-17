@@ -221,7 +221,7 @@ class JWT
                 new IssuedAtChecker(1000),
                 new NotBeforeChecker(1000),
                 new ExpirationTimeChecker(),
-                new IssuerChecker([$this->oidc['realm']])
+                new IssuerChecker([$this->oidc['issuer']])
             ]);
             $claimCheckerManager->check($this->jwtClaims, ['iss', 'sub', 'aud', 'exp']);
 
