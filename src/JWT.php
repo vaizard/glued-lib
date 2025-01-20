@@ -47,15 +47,27 @@ class JWT extends Bearer
     /**
      * Constructor for OIDC-related functionality.
      *
-     * @param array $oidcSettings Configuration settings for OIDC.
-     * @param \Phpfastcache\Helper\Psr16Adapter $cacheHandler Cache handler for managing discovery data.
-     * @param \PDO
-     * @param \Glued\Lib\Utils
+     * Initializes the object with the provided OIDC configuration, cache handler,
+     * database connection, and utility functions.
+     *
+     * @param array $oidcSettings Configuration settings for OIDC, including:
+     *  - `discovery` (string): The OIDC discovery endpoint URL.
+     *  - `issuer` (string): The expected OIDC issuer identifier.
+     *  - `ttl` (int): Time-to-live for caching OIDC discovery data, in seconds.
+     *  - `jwks_uri` (string): The URI for retrieving the OIDC JSON Web Key Set (JWKS).
+     *  - `cookie` (string): The name of the cookie containing the token.
+     *  - `header` (string): The name of the header containing the token.
+     *  - `regexp` (string): A regular expression for validating and extracting the token.
+     * @param \Phpfastcache\Helper\Psr16Adapter $cacheHandler Cache handler for managing OIDC discovery data.
+     * @param \PDO $pdo Database connection for performing related queries.
+     * @param \Glued\Lib\Utils $utils Utility functions for additional operations.
      */
+
     public function __construct(array $oidcSettings, Psr16Adapter $cacheHandler, \PDO $pdo, $utils) {
         $this->oidcDiscovery = $oidcSettings['discovery'];
         $this->oidcIssuer = $oidcSettings['issuer'];
         $this->oidcTtl = $oidcSettings['ttl'];
+        $this->oidcJwksUri = $oidcSettings['jwks_uri'];
         $this->tokenCookie = $oidcSettings['cookie'];
         $this->tokenHeader = $oidcSettings['header'];
         $this->tokenRegexp = $oidcSettings['regexp'];
@@ -113,7 +125,7 @@ class JWT extends Bearer
      * @return array The JWKS data as an associative array.
      * @throws \Exception If the JWKS retrieval process fails or returns invalid data.
      */
-    public function fetchOidcJwks(string $jwksUri): array
+    public function fetchOidcJwks(): array
     {
         $cacheKey = "gluedOidcJwks_" . md5($this->oidcDiscovery);
 
@@ -124,10 +136,10 @@ class JWT extends Bearer
 
         // If cache is empty or 'keys' not found, fetch fresh data
         if (empty($jwks) || !isset($jwks['keys'])) {
-            $json = $this->utils->fetch_uri($jwksUri) ?? '';
+            $json = $this->utils->fetch_uri($this->oidcJwksUri) ?? '';
             $jwks = json_decode($json, true) ?? [];
             if (empty($jwks)) {
-                throw new \Exception("Identity server returned empty JWKS response `{$jwksUri}`.", 502);
+                throw new \Exception("Identity server returned empty JWKS response `{$this->oidcJwksUri}`.", 502);
             }
             if (!isset($jwks['keys'])) {
                 throw new \Exception("Identity server failed to return JWKS certificates.", 502);
