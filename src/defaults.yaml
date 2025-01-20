@@ -9,7 +9,7 @@ glued:
     uservice: ${env.USERVICE}
     datapath: ${env.DATAPATH}
     frontend: ${glued.protocol}${glued.hostname}:3000
-    apitoken: "gtk_" # api token prefix
+    patprefix: "gtk_" # personal access token api token prefix
     baseuri: ${glued.protocol}${glued.hostname}
     openapi:
          hostname: openapi.${env.HOSTNAME}

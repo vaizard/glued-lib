@@ -1,7 +1,6 @@
 <?php
 
 declare(strict_types=1);
-
 namespace Glued\Lib;
 
 use Jose\Component\Checker\AlgorithmChecker;
@@ -21,16 +20,23 @@ use Jose\Component\Signature\JWSVerifier;
 use Jose\Component\Signature\Serializer\CompactSerializer;
 use Jose\Component\Signature\Serializer\JWSSerializerManager;
 use Jose\Component\Signature\JWS;
+use Phpfastcache\Helper\Psr16Adapter;
 
 /**
- * Provides authentication and authorization methods
+ * Provides authentication methods using Json Web Tokens
  */
 
-class JWT
+class JWT extends Bearer
 {
-    protected $oidc;
+    protected int $oidcTtl;
+    protected string $oidcDiscovery;
+    protected string $oidcIssuer;
+    protected string $tokenCookie;
+    protected string $tokenHeader;
+    protected string $tokenRegexp;
     protected $cache;
     protected $utils;
+    protected $pdo;
 
     private ?\Jose\Component\Signature\JWS $jws = null;
     private ?\Jose\Component\Core\JWKSet $jwkSet = null;
@@ -43,13 +49,20 @@ class JWT
      *
      * @param array $oidcSettings Configuration settings for OIDC.
      * @param \Phpfastcache\Helper\Psr16Adapter $cacheHandler Cache handler for managing discovery data.
+     * @param \PDO
      * @param \Glued\Lib\Utils
      */
-    public function __construct(array $oidcSettings, $cacheHandler, $utils) {
-        $this->oidc = $oidcSettings;
+    public function __construct(array $oidcSettings, Psr16Adapter $cacheHandler, \PDO $pdo, $utils) {
+        $this->oidcDiscovery = $oidcSettings['discovery'];
+        $this->oidcIssuer = $oidcSettings['issuer'];
+        $this->oidcTtl = $oidcSettings['ttl'];
+        $this->tokenCookie = $oidcSettings['cookie'];
+        $this->tokenHeader = $oidcSettings['header'];
+        $this->tokenRegexp = $oidcSettings['regexp'];
         $this->cache = $cacheHandler;
         $this->utils = $utils;
     }
+
 
     /**
      * Retrieves and caches OpenID Connect (OIDC) discovery data.
@@ -64,9 +77,9 @@ class JWT
      * @throws \Exception If the discovery process fails or if the discovered
      *                     issuer does not match the configured issuer.
      */
-    public function fetchOidcConfiguration(array $oidc): array
+    public function fetchOidcConfiguration(): array
     {
-        $cacheKey = "gluedOidcConfiguration_" . md5($this->oidc['discovery']);
+        $cacheKey = "gluedOidcConfiguration_" . md5($this->oidcDiscovery);
 
         // Attempt to retrieve cached discovery data
         $res = $this->cache->has($cacheKey)
@@ -74,17 +87,17 @@ class JWT
             : [];
 
         // If cache is empty or issuer doesn't match, fetch fresh data
-        if (empty($res) || ($res['issuer'] ?? null) !== $oidc['issuer']) {
-            $json = $this->utils->fetch_uri($oidc['discovery']) ?? '';
+        if (empty($res) || ($res['issuer'] ?? null) !== $this->oidcIssuer) {
+            $json = $this->utils->fetch_uri($this->oidcDiscovery) ?? '';
             $res = json_decode($json, true);
             if (empty($res)) {
-                throw new \Exception("Fetching OIDC discovery configuration {$oidc['discovery']} failed.", 502);
+                throw new \Exception("Fetching OIDC discovery configuration {$this->oidcDiscovery} failed.", 502);
             }
-            if (($res['issuer'] ?? null) !== $oidc['issuer']) {
-                throw new \Exception("Discovered OIDC issuer {$res['issuer']} doesn't match the expected issuer {$oidc['issuer']}.", 500);
+            if (($res['issuer'] ?? null) !== $this->oidcIssuer) {
+                throw new \Exception("Discovered OIDC issuer {$res['issuer']} doesn't match the expected issuer {$this->oidcIssuer}.", 500);
             }
             // Cache the new discovery data
-            $this->cache->set($cacheKey, $json, $oidc['ttl']);
+            $this->cache->set($cacheKey, $json, $this->oidcTtl);
         }
         return $res;
     }
@@ -102,7 +115,7 @@ class JWT
      */
     public function fetchOidcJwks(string $jwksUri): array
     {
-        $cacheKey = "gluedOidcJwks_" . md5($this->oidc['discovery']);
+        $cacheKey = "gluedOidcJwks_" . md5($this->oidcDiscovery);
 
         // Attempt to retrieve cached JWKS data
         $jwks = $this->cache->has($cacheKey)
@@ -120,7 +133,7 @@ class JWT
                 throw new \Exception("Identity server failed to return JWKS certificates.", 502);
             }
             // Cache the new JWKS data
-            $this->cache->set($cacheKey, $json, $this->oidc['ttl']);
+            $this->cache->set($cacheKey, $json, $this->oidcTtl);
         }
         return $jwks;
     }
@@ -142,27 +155,6 @@ class JWT
             if ($item['use'] === 'sig') { $jwk[] = new JWK($item); }
         }
         return $jwk;
-    }
-
-
-    public function fetchToken($request)
-    {
-        // Check for token in header and in the cookie
-        $header = $request->getHeaderLine($this->oidc['header']);
-        if (!empty($header) && preg_match($this->oidc['regexp'], $header, $matches)) {
-            return $matches[1];
-        }
-
-        $cookie = $request->getCookieParams()[$this->oidc['cookie']] ?? null;
-        if ($cookie && preg_match($this->oidc['regexp'], $cookie, $matches)) {
-            return $matches[1];
-        }
-
-        if ($cookie) {
-            return $cookie;
-        }
-
-        throw new \Exception("Token not found.", 401);
     }
 
 
@@ -221,13 +213,36 @@ class JWT
                 new IssuedAtChecker(1000),
                 new NotBeforeChecker(1000),
                 new ExpirationTimeChecker(),
-                new IssuerChecker([$this->oidc['issuer']])
+                new IssuerChecker([$this->oidcIssuer])
             ]);
             $claimCheckerManager->check($this->jwtClaims, ['iss', 'sub', 'aud', 'exp']);
 
         } catch (\Exception $e) {
             throw new \Exception('Token validation failed: ' . $e->getMessage(), 401, $e);
         }
+    }
+
+    public function matchToken(): array|object
+    {
+        $db = new Sql($this->pdo, 'core_users');
+        $this->pdo->startTrans();
+
+        $res = $db->get($this->jwtClaims['sub']);
+        if (!$res) {
+            $doc = [
+                'uuid' => $this->jwtClaims['sub'],
+                'profiles' => [
+                    $this->jwtClaims['issuer'] => [
+                        'name' => $this->jwtClaims['name'],
+                        'email' => $this->jwtClaims['email'],
+                        'username' => $this->jwtClaims['preferred_username'],
+                    ]
+                ]
+            ];
+            $res = $db->create($doc);
+        }
+        $this->pdo->commit();
+        return ($doc ?? $res);
     }
 
     /**
