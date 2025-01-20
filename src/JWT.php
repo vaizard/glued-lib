@@ -47,7 +47,13 @@ class JWT extends Bearer
     /**
      * Constructor for OIDC-related functionality.
      *
-     * @param array $oidcSettings Configuration settings for OIDC.
+     * @param array $oidcSettings Configuration settings for OIDC, including:
+     *   - `discovery` (string): The OIDC discovery endpoint URL.
+     *   - `issuer` (string): The expected OIDC issuer identifier.
+     *   - `ttl` (int): Time-to-live for caching OIDC discovery data, in seconds.
+     *   - `cookie` (string): The name of the cookie containing the token.
+     *   - `header` (string): The name of the header containing the token.
+     *   - `regexp` (string): A regular expression for validating and extracting the token.
      * @param \Phpfastcache\Helper\Psr16Adapter $cacheHandler Cache handler for managing discovery data.
      * @param \PDO
      * @param \Glued\Lib\Utils
