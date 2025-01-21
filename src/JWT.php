@@ -221,7 +221,7 @@ class JWT extends Bearer
                 new ExpirationTimeChecker(),
                 new IssuerChecker([$this->oidcIssuer])
             ]);
-            $claimCheckerManager->check($this->jwtClaims, ['iss', 'sub', 'aud', 'exp']);
+            $claimCheckerManager->check($this->jwtClaims, ['iss', 'sub', 'exp']);
 
         } catch (\Exception $e) {
             throw new \Exception('Token validation failed: ' . $e->getMessage(), 401, $e);
