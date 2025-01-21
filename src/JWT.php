@@ -237,7 +237,7 @@ class JWT extends Bearer
         if (!$res) {
             $doc = [
                 'uuid' => $this->jwtClaims['sub'],
-                'profiles' => [
+                'profile' => [
                     $this->jwtClaims['issuer'] => [
                         'name' => $this->jwtClaims['name'],
                         'email' => $this->jwtClaims['email'],
