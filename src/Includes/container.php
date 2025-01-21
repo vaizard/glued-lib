@@ -20,7 +20,7 @@ use Monolog\Handler\FallbackGroupHandler;
 use Monolog\Handler\DeduplicationHandler;
 use Ramsey\Uuid\Uuid;
 
-$container->set('fscache', function () {
+$container->set('filesCache', function () {
     try {
         $path = $_ENV['DATAPATH'] . '/' . basename(__ROOT__) . '/cache/psr16';
         CacheManager::setDefaultConfig(new ConfigurationOption([
@@ -33,9 +33,9 @@ $container->set('fscache', function () {
     }
 });
 
-$container->set('memcache', function () {
+$container->set('apcuCache', function () {
     CacheManager::setDefaultConfig(new ConfigurationOption([
-        "defaultTtl" => 60,
+        "defaultTtl" => 600,
     ]));
     return new Psr16Adapter('apcu');
 });
