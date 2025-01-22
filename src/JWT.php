@@ -67,6 +67,7 @@ class JWT extends Bearer
         $this->tokenRegexp = $oidcSettings['regexp'];
         $this->cache = $cacheHandler;
         $this->utils = $utils;
+        $this->pdo = $pdo;
     }
 
 
