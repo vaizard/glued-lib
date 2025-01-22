@@ -232,7 +232,7 @@ class JWT extends Bearer
     public function matchToken(): array|object
     {
         $db = new Sql($this->pdo, 'core_users');
-        $this->pdo->startTrans();
+        $this->pdo->beginTransaction();
 
         $res = $db->get($this->jwtClaims['sub']);
         if (!$res) {
