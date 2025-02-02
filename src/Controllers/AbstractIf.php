@@ -49,7 +49,7 @@ abstract class AbstractIf extends AbstractService
     }
 
 
-    protected function getDeployments($request, $response): mixed
+    public function getDeployments(Request $request, Response $response, array $args = []): Response
     {
         $routeContext = RouteContext::fromRequest($request);
         $route = $routeContext->getRoute();
