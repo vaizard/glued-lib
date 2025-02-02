@@ -313,7 +313,7 @@ abstract class GenericSql
         $this->stmt->execute();
 
         return $this->stmt->fetchAll(\PDO::FETCH_FUNC, function ($json) {
-            return json_decode($json);
+            return json_decode($json, true);
         });
     }
 
