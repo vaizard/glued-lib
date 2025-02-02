@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace Glued\Lib\Controllers;
 
+use Slim\Routing\RouteContext;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -44,10 +45,22 @@ abstract class AbstractIf extends AbstractService
         $this->actions = new \Glued\Lib\Sql($this->pg, 'if__actions');
         $this->deployment = [];
         $this->closePorts = [];
+
     }
 
 
-    /**
+    protected function getDeployments($request, $response): mixed
+    {
+        $routeContext = RouteContext::fromRequest($request);
+        $route = $routeContext->getRoute();
+        //$this->deployments->where('service', '=', $qp['service']);
+        //$this->deployments->selectModifier = "jsonb_build_object('uri', concat('{$this->settings['glued']['baseuri']}{$this->settings['routes']['be_if']['pattern']}svc/', doc->>'service', '/v1/', doc->>'uuid'), 'nonce', nonce, 'created_at', created_at, 'updated_at', updated_at) || ";
+        //$data = $this->deployments->getAll();
+        $data = [ $route ];
+        return $response->withJson($data);
+    }
+
+/**
      * Retrieves the deployment details including actions for a given deployment UUID.
      *
      * @param string $deploymentUUID The UUID of the deployment to retrieve.
