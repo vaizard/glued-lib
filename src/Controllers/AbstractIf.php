@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace Glued\Lib\Controllers;
 
+use Selective\Transformer\ArrayTransformer;
 use Slim\Routing\RouteContext;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -51,12 +52,20 @@ abstract class AbstractIf extends AbstractService
 
     public function getDeployments(Request $request, Response $response, array $args = []): Response
     {
-        $routeContext = RouteContext::fromRequest($request);
-        $route = $routeContext->getRoute();
-        //$this->deployments->where('service', '=', $qp['service']);
-        //$this->deployments->selectModifier = "jsonb_build_object('uri', concat('{$this->settings['glued']['baseuri']}{$this->settings['routes']['be_if']['pattern']}svc/', doc->>'service', '/v1/', doc->>'uuid'), 'nonce', nonce, 'created_at', created_at, 'updated_at', updated_at) || ";
-        //$data = $this->deployments->getAll();
-        $data = [ $route ];
+        $path = explode('/', trim($request->getUri()->getPath(), '/'));
+        if (implode('/', array_slice($path, 0, 3)) !== 'api/if/svc' || !isset($path[3])) {
+            throw new \Exception('Invalid path');
+        }
+        $service =  $path[3];
+        $this->deployments->where('service', '=', $service);
+        $this->deployments->selectModifier = "jsonb_build_object('uri', concat('{$this->settings['glued']['baseuri']}{$this->settings['routes']['be_if']['pattern']}svc/', doc->>'service', '/v1/', doc->>'uuid')) || ";
+        $data = $this->deployments->getAll();
+        $xfi = new ArrayTransformer();
+        $xfi->map('uri', 'uri', 'required')
+            ->map('uuid', 'uuid', 'required')
+            ->map('name', 'name', 'required')
+            ->map('description', 'description');
+        $data = $xfi->toArrays($data);
         return $response->withJson($data);
     }
 
