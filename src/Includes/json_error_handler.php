@@ -7,6 +7,8 @@ return function ($exception, $inspector) {
     $r['message'] = $exception->getMessage();
     $r['title']   = $inspector->getExceptionName() ;
     $r['file']    = $exception->getFile() . ' ' . $exception->getLine();
+    $r['date']   = date('Y-m-d H:i:s');
+    $r['trace']   = $inspector->getTrace();
     $short        = explode('\\', $r['title']);
     $short        = (string) array_pop($short);
     $r['details'] = "No details, sorry.";
