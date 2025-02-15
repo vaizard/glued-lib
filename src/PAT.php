@@ -53,7 +53,7 @@ class PAT extends Bearer
             throw new \Exception('Provided token is not an API token.', 401);
         }
         $pat = substr($pat, strlen($this->tokenPrefix));
-        $db = new Sql($this->pdo, "core_pat_details");
+        $db = new Sql($this->pdo, "core_pat_ext");
         $db->where("token", "=", $pat);
         $res = $db->getAll();
         if (empty($res)) {
