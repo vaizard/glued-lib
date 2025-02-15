@@ -5,10 +5,10 @@ return function ($exception, $inspector) {
     header("Content-Type: application/json");
     $r['code']    = $exception->getCode();
     $r['message'] = $exception->getMessage();
-    $r['title']   = $inspector->getExceptionName() ;
+    $r['title']   = $inspector->getExceptionName();
     $r['file']    = $exception->getFile() . ' ' . $exception->getLine();
     $r['date']   = date('Y-m-d H:i:s');
-    $r['trace']   = $inspector->getTrace();
+    $r['trace']   = $exception->getTrace();
     $short        = explode('\\', $r['title']);
     $short        = (string) array_pop($short);
     $r['details'] = "No details, sorry.";
@@ -21,10 +21,10 @@ return function ($exception, $inspector) {
     if ($r['code'] == 410) { $http = '410 Gone'; }
 
     if ($short == "ExtendedException")      { $r['details'] = $exception->getDetails(); }
-    if ($short == "HttpNotFoundException")  { $http = '404 Not Found'; $r['datails'] = "Try: " . $container->get('settings')['glued']['protocol'].$container->get('settings')['glued']['hostname'].$container->get('routecollector')->getRouteParser()->UrlFor('be_core_routes'); }
+    if ($short == "HttpNotFoundException")  { $http = '404 Not Found'; $r['details'] = "Try: " . $container->get('settings')['glued']['protocol'].$container->get('settings')['glued']['hostname'].$container->get('routecollector')->getRouteParser()->UrlFor('be_core_routes'); }
     if ($r['title'] == "mysqli_sql_exception") {
         $container->get('logger')->error("EXCEPTION HANDLER", [ "SQL query" => $container->get('db')->getLastQuery(), "Exception" => $r ]);
-        $r['datails'] = "Query logged.";
+        $r['details'] = "Query logged.";
     }
 
     header($_SERVER['SERVER_PROTOCOL'].' '.$http);
