@@ -11,7 +11,7 @@ return function ($exception, $inspector) {
     $r['trace']   = $exception->getTrace();
     $short        = explode('\\', $r['title']);
     $short        = (string) array_pop($short);
-    $r['details'] = "No details, sorry.";
+    $r['hint']    = null;
     $http         = '500 Internal Server Error';
 
     if ($r['code'] == 400) { $http = '400 Bad Request'; }
@@ -20,11 +20,11 @@ return function ($exception, $inspector) {
     if ($r['code'] == 404) { $http = '404 Not found'; }
     if ($r['code'] == 410) { $http = '410 Gone'; }
 
-    if ($short == "ExtendedException")      { $r['details'] = $exception->getDetails(); }
-    if ($short == "HttpNotFoundException")  { $http = '404 Not Found'; $r['details'] = "Try: " . $container->get('settings')['glued']['protocol'].$container->get('settings')['glued']['hostname'].$container->get('routecollector')->getRouteParser()->UrlFor('be_core_routes'); }
+    if ($short == "ExtendedException")      { $r['hint'] = $exception->gethint(); }
+    if ($short == "HttpNotFoundException")  { $http = '404 Not Found'; $r['hint'] = "Try: " . $container->get('settings')['glued']['protocol'].$container->get('settings')['glued']['hostname'].$container->get('routecollector')->getRouteParser()->UrlFor('be_core_routes'); }
     if ($r['title'] == "mysqli_sql_exception") {
         $container->get('logger')->error("EXCEPTION HANDLER", [ "SQL query" => $container->get('db')->getLastQuery(), "Exception" => $r ]);
-        $r['details'] = "Query logged.";
+        $r['hint'] = "Query logged.";
     }
 
     header($_SERVER['SERVER_PROTOCOL'].' '.$http);
