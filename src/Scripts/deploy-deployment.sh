@@ -6,7 +6,13 @@ source "$DIR/loadenv.sh"
 
 echo "[INFO] deploying deployment"
 
-cp -r glued/Config/Deployment/*.yaml "${DATAPATH}/$(basename `pwd`)/config"
-mkdir "${DATAPATH}/$(basename `pwd`)/crons"
-cp -r glued/Config/Cron/* "${DATAPATH}/$(basename `pwd`)/crons"
+mkdir "${DATAPATH}/$(basename `pwd`)/{crons,config}"
+
+if [ -d "glued/Config/Deployment" ]; then
+    cp -r glued/Config/Deployment/* "${DATAPATH}/$(basename `pwd`)/config"
+fi
+
+if [ -d "glued/Config/Cron" ]; then
+    cp -r glued/Config/Cron/* "${DATAPATH}/$(basename "$(pwd)")/crons"
+fi
 
