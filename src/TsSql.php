@@ -54,7 +54,7 @@ class TsSql extends Sql {
      * and stored as well.
      * a $doc
      * @param array|object $docs array of documents passed from upstream interface
-     * @param $xf Selective\Transformer object ensuring transformation of upstream docs
+     * @param $xf \Selective\Transformer object ensuring transformation of upstream docs
      * to their internal representation     * @return bool
      */
     public function CommonCreateBatch(array | object $docs, $xf)
