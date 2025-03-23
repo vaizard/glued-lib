@@ -6,7 +6,8 @@ source "$DIR/loadenv.sh"
 
 echo "[INFO] deploying deployment"
 
-mkdir "${DATAPATH}/$(basename `pwd`)/{crons,config}"
+mkdir -p "${DATAPATH}/$(basename `pwd`)/crons"
+mkdir -p "${DATAPATH}/$(basename `pwd`)/config"
 
 if [ -d "glued/Config/Deployment" ]; then
     cp -r glued/Config/Deployment/* "${DATAPATH}/$(basename `pwd`)/config"
