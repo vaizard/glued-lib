@@ -9,3 +9,4 @@ echo "[INFO] deploying deployment"
 cp -r glued/Config/Deployment/*.yaml "${DATAPATH}/$(basename `pwd`)/config"
 mkdir "${DATAPATH}/$(basename `pwd`)/crons"
 cp -r glued/Config/Cron/* "${DATAPATH}/$(basename `pwd`)/crons"
+
