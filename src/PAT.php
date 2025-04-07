@@ -59,7 +59,7 @@ class PAT extends Bearer
         if (empty($res)) {
             throw new \Exception('Invalid / revoked API token provided', 401);
         }
-        return $res;
+        return $res[0];
     }
 
     /**
