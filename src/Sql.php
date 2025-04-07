@@ -125,6 +125,7 @@ abstract class GenericSql
     }
 
     /**
+
      * Inserts or upserts a json document in the database. Ensures that the document contains a uuid.
      * When upserting, on uuid column collision (primary key generated from doc.uuid), the doc and
      * updated_at columns are updated by default. This behavior can be changed throug the upsertString.
@@ -149,7 +150,7 @@ abstract class GenericSql
      * c] update the doc having the same uuid
      *
      * @return string The UUID of the newly created record.
-     */
+     *
     public function create(array $doc, $upsert = false, $handleUpsertIgnore = false): mixed
     {
         $uuid = $doc['uuid'] ?? $this->uuid();
@@ -172,7 +173,7 @@ abstract class GenericSql
     }
 
 
-    /**
+
      * Inserts or upserts multiple JSON documents into the database. Each document must contain a uuid.
      * When upserting, on uuid column collision (primary key generated from doc.uuid), the doc and
      * updated_at columns are updated by default. This behavior can be changed through the upsertString.
@@ -188,7 +189,7 @@ abstract class GenericSql
      * @param array[] $docs An array of associative arrays representing the JSON documents to be inserted or upserted.
      * @param bool $upsert Whether to perform an upsert operation (default is false).
      * @return void
-     */
+     *
     public function createBatch(array $docs, $upsert = false): void
     {
         $cond = $upsert ? $this->upsertString : "";
@@ -203,6 +204,145 @@ abstract class GenericSql
                 if ($upsert) $this->handleUpsertException($e);
             }
         }
+    }
+*/
+
+    /**
+     * Deprecated. Please update your code to use insert() or upsert() instead.
+     *
+     * @throws \Exception Always throws an exception.
+     */
+    public function create(array $doc, $upsert = false, $handleUpsertIgnore = false): never
+    {
+        throw new \Exception("Deprecated method create() called. Please update your code to use insert() or upsert().");
+    }
+
+    /**
+     * Deprecated. Please update your code to use insertBatch() or upsertBatch() instead.
+     *
+     * @throws \Exception Always throws an exception.
+     */
+    public function createBatch(array $docs, $upsert = false): never
+    {
+        throw new \Exception("Deprecated method createBatch() called. Please update your code to use insertBatch() or upsertBatch().");
+    }
+
+    /**
+     * Inserts a JSON document into the database.
+     *
+     * @param array $doc The associative array representing the JSON document to be inserted.
+     * @return mixed The UUID of the newly created record.
+     */
+    public function insert(array $doc): mixed
+    {
+        $uuid = $doc['uuid'] ?? $this->uuid();
+        $doc = $this->toJson($doc, $uuid);
+        $cond = "RETURNING uuid";
+        $this->stmt = $this->pdo->prepare("INSERT INTO {$this->schema}.{$this->table} ({$this->dataColumn}) VALUES (:doc) {$cond}");
+        $this->stmt->bindParam(':doc', $doc);
+        $this->stmt->execute();
+        return $this->stmt->fetchColumn();
+    }
+
+    /**
+     * Inserts a JSON document into the database with upsert behavior.
+     *
+     * The INSERT query uses an "ON CONFLICT (uuid) DO UPDATE" clause ($this->upsertString) so that if
+     * a conflict occurs on the UUID, the existing record is updated and its UUID is returned.
+     *
+     * In addition, if a conflict occurs due to another unique constraint (for example, a duplicate nonce),
+     * an exception is thrown. When the $handleOtherUniqueConstraints flag is set to true, the exception
+     * is caught, and a secondary query is executed that retrieves the UUID of the existing record based
+     * on a hash computed from the document (ignoring its UUID). This ensures that repeated upsert
+     * attempts for the same document yield the same UUID, providing idempotent behavior. Tp configure
+     * unique constraints, see $this->upsertIgnore.
+     *
+     * @param array  $doc The associative array representing the JSON document.
+     * @param bool   $handleOtherUniqueConstraints If true, on a conflict due to unique constraints
+     *               (other than the UUID), the method will fetch and return the existing record's UUID.
+     *               Defaults to false.
+     * @return mixed The UUID of the inserted or updated record, or the existing record's UUID if a conflict is detected.
+     */
+    public function upsert(array $doc, bool $handleOtherUniqueConstraints = false): mixed
+    {
+        $uuid = $doc['uuid'] ?? $this->uuid();
+        $doc = $this->toJson($doc, $uuid);
+        $cond = $this->upsertString . " RETURNING uuid";
+        try {
+            $this->stmt = $this->pdo->prepare("INSERT INTO {$this->schema}.{$this->table} ({$this->dataColumn}) VALUES (:doc) {$cond}");
+            $this->stmt->bindParam(':doc', $doc);
+            $this->stmt->execute();
+        } catch (\Exception $e) {
+            if ($handleOtherUniqueConstraints) {
+                $this->handleUpsertException($e);
+                $this->stmt = $this->pdo->prepare("SELECT uuid FROM {$this->schema}.{$this->table} WHERE nonce = decode(md5((:doc::jsonb - 'uuid')::text), 'hex')");
+                $this->stmt->bindParam(':doc', $doc);
+                $this->stmt->execute();
+            }
+        }
+        return $this->stmt->fetchColumn();
+    }
+
+    /**
+     * Inserts multiple JSON documents into the database.
+     *
+     * This method iterates over the provided documents and calls the single-document
+     * insert() method for each. The entire operation is wrapped in a transaction
+     * to ensure atomicity. It returns an array of UUIDs corresponding to each inserted record.
+     *
+     * @param array[] $docs An array of associative arrays representing the JSON documents.
+     * @return array An array of UUIDs for the inserted records.
+     * @throws \Exception If any insert operation fails, the transaction is rolled back and the exception is rethrown.
+     */
+    public function insertBatch(array $docs): array
+    {
+        $uuids = [];
+        $this->pdo->beginTransaction();
+        try {
+            foreach ($docs as $doc) {
+                $uuids[] = $this->insert($doc);
+            }
+            $this->pdo->commit();
+        } catch (\Exception $e) {
+            $this->pdo->rollBack();
+            throw $e;
+        }
+        return $uuids;
+    }
+
+    /**
+     * Inserts multiple JSON documents into the database with upsert behavior.
+     *
+     * This method iterates over the provided documents and calls the single-document
+     * upsert() method for each. The upsert() method uses an "ON CONFLICT (uuid) DO UPDATE"
+     * clause to update existing records, and if a conflict occurs due to unique constraints
+     * (other than the UUID), passing the $handleOtherUniqueConstraints flag as true will cause
+     * the method to fetch and return the existing record's UUID.
+     *
+     * The entire operation is wrapped in a transaction to ensure atomicity. The method returns
+     * an array of UUIDs corresponding to each inserted or updated record.
+     *
+     * @param array[] $docs An array of associative arrays representing the JSON documents.
+     * @param bool $handleOtherUniqueConstraints If true, on a conflict due to unique constraints
+     *               (other than the UUID conflict), the upsert() method will fetch and return the
+     *               existing record's UUID. Defaults to false.
+     * @return array An array of UUIDs for the inserted or updated records.
+     * @throws \Exception If any upsert operation fails, the transaction is rolled back and the exception is rethrown.
+     */
+    public function upsertBatch(array $docs, bool $handleOtherUniqueConstraints = false): array
+    {
+        $uuids = [];
+        $this->pdo->beginTransaction();
+        try {
+            foreach ($docs as $doc) {
+                $uuids[] = $this->upsert($doc, $handleOtherUniqueConstraints);
+            }
+            $this->pdo->commit();
+        } catch (\Exception $e) {
+            $this->pdo->rollBack();
+            throw $e;
+        }
+        return $uuids;
     }
 
     /**
