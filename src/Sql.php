@@ -140,7 +140,7 @@ abstract class GenericSql
      * @param array $doc The associative array representing the json document to be inserted or upserted.
      * @param bool $upsert Whether to perform an upsert operation (default is false).
      * @param bool $handleUpsertIgnore Whether to get the uuid of stored (:doc - (ignoredColumn)) on conflict in the
-     * ignoredColumn. See $upsertIgnore. This is typically usefull when you want to prevent generating new rows with
+     * ignoredColumn. See $upsertIgnore. This is typically useful when you want to prevent generating new rows with
      * the same doc under different uuids. To achieve this, a nonce column generated as md5(doc - 'uuid') holds the
      * md5 hash of the doc without the uuid and prevents duplicate doc entries under different uuids. Flipping
      * $handleUpsertIgnore to true would cause create($json, true, true) to return the same uuid stored in database on
