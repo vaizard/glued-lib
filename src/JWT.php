@@ -229,6 +229,18 @@ class JWT extends Bearer
         }
     }
 
+    /**
+     * Matches or creates a user token record, if the JWT is valid.
+     *
+     * This method retrieves a user record from the 'core_users' table based on the JWT 'sub' claim.
+     * If no record is found, it creates a new user document with the profile details extracted from
+     * the JWT claims (issuer, name, email, and preferred username). The operation is executed within
+     * a database transaction to ensure data consistency.
+     *
+     * @return array|object Returns the user record, either an existing one or a newly created document.
+     *
+     * @throws \PDOException If the transaction fails or any database error occurs.
+     */
     public function matchToken(): array|object
     {
         $db = new Sql($this->pdo, 'core_users');

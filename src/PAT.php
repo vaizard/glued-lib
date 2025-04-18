@@ -45,6 +45,7 @@ class PAT extends Bearer
      * @return mixed The token details retrieved from the database if the token is valid.
      * @throws \Exception If the token does not start with the required prefix.
      * @throws \Exception If the token is invalid, revoked, or not found in the database.
+     *
      */
     function matchToken(string $pat): mixed
     {
@@ -59,7 +60,7 @@ class PAT extends Bearer
         if (empty($res)) {
             throw new \Exception('Invalid / revoked API token provided', 401);
         }
-        return $res;
+        return $res[0];
     }
 
     /**
