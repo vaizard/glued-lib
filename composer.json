@@ -7,7 +7,7 @@
 		"library"
 	],
 	"require": {
-		"php": "^8",
+		"php": "^8.3",
 		"ext-bcmath": "*",
 		"ext-curl": "*",
 		"ext-gmp": "*",
