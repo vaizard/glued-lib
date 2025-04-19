@@ -125,89 +125,6 @@ abstract class GenericSql
     }
 
     /**
-
-     * Inserts or upserts a json document in the database. Ensures that the document contains a uuid.
-     * When upserting, on uuid column collision (primary key generated from doc.uuid), the doc and
-     * updated_at columns are updated by default. This behavior can be changed throug the upsertString.
-     *
-     * Additional unique constraints are supported by handling collision exeptions on columns listed in
-     * upsertIgnore. By default, exceptions over duplicate nonce column values are handled as the unique
-     * constraint on the on nonce column (the md5 hash of doc - 'uuid') is the most frequent scenario.
-     * Tables with a unique nonce constraint will not allow duplicate documents differing only in their uuid.
-     *
-     * NOTE: To identify, if a create statement created or updated a row, or if a unique constraint prevented
-     * an update, use stmt->rowCount() to test if the number of affected rows was 0 or 1.
-     *
-     * @param array $doc The associative array representing the json document to be inserted or upserted.
-     * @param bool $upsert Whether to perform an upsert operation (default is false).
-     * @param bool $handleUpsertIgnore Whether to get the uuid of stored (:doc - (ignoredColumn)) on conflict in the
-     * ignoredColumn. See $upsertIgnore. This is typically useful when you want to prevent generating new rows with
-     * the same doc under different uuids. To achieve this, a nonce column generated as md5(doc - 'uuid') holds the
-     * md5 hash of the doc without the uuid and prevents duplicate doc entries under different uuids. Flipping
-     * $handleUpsertIgnore to true would cause create($json, true, true) to return the same uuid stored in database on
-     * a) insert of a doc
-     * b) re-insert of the doc while providing a different uuid (data arent updated, original/stored uuid is returned)
-     * c] update the doc having the same uuid
-     *
-     * @return string The UUID of the newly created record.
-     *
-    public function create(array $doc, $upsert = false, $handleUpsertIgnore = false): mixed
-    {
-        $uuid = $doc['uuid'] ?? $this->uuid();
-        $doc = $this->toJson($doc, $uuid);
-        $cond = $upsert ? $this->upsertString : "";
-        $cond .= " RETURNING uuid";
-        try {
-            $this->stmt = $this->pdo->prepare("INSERT INTO {$this->schema}.{$this->table} ({$this->dataColumn}) VALUES (:doc) {$cond}");
-            $this->stmt->bindParam(':doc', $doc);
-            $this->stmt->execute();
-        } catch (\Exception $e) {
-            if ($upsert) $this->handleUpsertException($e);
-            if ($upsert && $handleUpsertIgnore) {
-                $this->stmt = $this->pdo->prepare("SELECT uuid FROM {$this->schema}.{$this->table} WHERE nonce = decode(md5((:doc::jsonb - 'uuid')::text), 'hex')");
-                $this->stmt->bindParam(':doc', $doc);
-                $this->stmt->execute();
-            }
-        }
-        return $this->stmt->fetchColumn();
-    }
-
-
-
-     * Inserts or upserts multiple JSON documents into the database. Each document must contain a uuid.
-     * When upserting, on uuid column collision (primary key generated from doc.uuid), the doc and
-     * updated_at columns are updated by default. This behavior can be changed through the upsertString.
-     *
-     * Additional unique constraints are supported by handling collision exceptions on columns listed in
-     * upsertIgnore. By default, exceptions over duplicate nonce column values are handled as the unique
-     * constraint on the nonce column (the md5 hash of doc - 'uuid') is the most frequent scenario.
-     * Tables with a unique nonce constraint will not allow duplicate documents differing only in their uuids.
-     *
-     * NOTE: To identify if a create statement created or updated a row, or if a unique constraint prevented
-     * an update, use stmt->rowCount() to test if the number of affected rows was 0 or 1.
-     *
-     * @param array[] $docs An array of associative arrays representing the JSON documents to be inserted or upserted.
-     * @param bool $upsert Whether to perform an upsert operation (default is false).
-     * @return void
-     *
-    public function createBatch(array $docs, $upsert = false): void
-    {
-        $cond = $upsert ? $this->upsertString : "";
-        $this->stmt = $this->pdo->prepare("INSERT INTO {$this->schema}.{$this->table} ({$this->dataColumn}) VALUES (:doc) {$cond}");
-        foreach ($docs as $doc) {
-            $uuid = $doc['uuid'] ?? $this->uuid();
-            $doc = $this->toJson($doc, $uuid);
-            try {
-                $this->stmt->bindParam(':doc', $doc);
-                $this->stmt->execute();
-            } catch (\Exception $e) {
-                if ($upsert) $this->handleUpsertException($e);
-            }
-        }
-    }
-*/
-
-    /**
      * Deprecated. Please update your code to use insert() or upsert() instead.
      *
      * @throws \Exception Always throws an exception.
@@ -254,13 +171,13 @@ abstract class GenericSql
      * an exception is thrown. When the $handleOtherUniqueConstraints flag is set to true, the exception
      * is caught, and a secondary query is executed that retrieves the UUID of the existing record based
      * on a hash computed from the document (ignoring its UUID). This ensures that repeated upsert
-     * attempts for the same document yield the same UUID, providing idempotent behavior. Tp configure
+     * attempts for the same document yield the same UUID, providing idempotent behavior. To configure
      * unique constraints, see $this->upsertIgnore.
      *
      * @param array  $doc The associative array representing the JSON document.
      * @param bool   $handleOtherUniqueConstraints If true, on a conflict due to unique constraints
      *               (other than the UUID), the method will fetch and return the existing record's UUID.
-     *               Defaults to false.
+     *               Defaults to false, if you set this to true, make sure to correctly set $this->upsertIgnore
      * @return mixed The UUID of the inserted or updated record, or the existing record's UUID if a conflict is detected.
      */
     public function upsert(array $doc, bool $handleOtherUniqueConstraints = false): mixed
@@ -273,12 +190,11 @@ abstract class GenericSql
             $this->stmt->bindParam(':doc', $doc);
             $this->stmt->execute();
         } catch (\Exception $e) {
-            if ($handleOtherUniqueConstraints) {
-                $this->handleUpsertException($e);
-                $this->stmt = $this->pdo->prepare("SELECT uuid FROM {$this->schema}.{$this->table} WHERE nonce = decode(md5((:doc::jsonb - 'uuid')::text), 'hex')");
-                $this->stmt->bindParam(':doc', $doc);
-                $this->stmt->execute();
-            }
+            if (!$handleOtherUniqueConstraints) { throw $e; }
+            $this->handleUpsertException($e);
+            $this->stmt = $this->pdo->prepare("SELECT uuid FROM {$this->schema}.{$this->table} WHERE nonce = decode(md5((:doc::jsonb - 'uuid')::text), 'hex')");
+            $this->stmt->bindParam(':doc', $doc);
+            $this->stmt->execute();
         }
         return $this->stmt->fetchColumn();
     }
