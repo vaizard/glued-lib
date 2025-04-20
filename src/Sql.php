@@ -375,9 +375,10 @@ abstract class GenericSql
         });
     }
 
-    public function first(): void
+    public function first(): self
     {
         $this->limit = 1;
+        return $this;
     }
 
 
