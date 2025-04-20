@@ -51,6 +51,7 @@ abstract class GenericSql
 
     public string $orderBy = "";
 
+    public int $limit;
 
     public function __construct(PDO $pdo, string $table)
     {
@@ -364,6 +365,7 @@ abstract class GenericSql
         }
 
         $query .= !empty($this->orderBy) ? " ORDER BY {$this->orderBy}" : '';
+        $query .= !empty($this->limit) ? " LIMIT {$this->limit}" : '';
         $this->stmt = $this->pdo->prepare($query);
         foreach ($params as $paramName => $value) { $this->stmt->bindValue($paramName, $value); }
         $this->stmt->execute();
@@ -372,6 +374,12 @@ abstract class GenericSql
             return json_decode($json, true);
         });
     }
+
+    public function first(): void
+    {
+        $this->limit = 1;
+    }
+
 
 }
 
