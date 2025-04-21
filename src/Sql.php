@@ -51,7 +51,9 @@ abstract class GenericSql
 
     public string $orderBy = "";
 
-    public int $limit;
+    public string|int $limit = "ALL";
+    public string $query = "";
+    public array $params = [];
 
     public function __construct(PDO $pdo, string $table)
     {
@@ -349,9 +351,9 @@ abstract class GenericSql
 
     public function getAll(): array
     {
-        $query = "SELECT {$this->selectModifier} {$this->dataColumn} FROM {$this->schema}.{$this->table} AS doc";
+        $this->query = "SELECT {$this->selectModifier} {$this->dataColumn} FROM {$this->schema}.{$this->table} AS doc";
         $conds = [];
-        $params = [];
+        $this->params = [];
 
         if (!empty($this->wheres)) {
             foreach ($this->wheres as $index => $c) {
@@ -359,15 +361,15 @@ abstract class GenericSql
                 $conditionStr = "({$c['column']} {$c['condition']} {$paramName})"; // condition string
                 $logicalOperator = isset($c['logicalOperator']) ? " {$c['logicalOperator']} " : ''; // Determine the logical operator (AND, OR), default to empty for the first condition
                 $conds[] = ($index > 0 ? $logicalOperator : '') . $conditionStr; // Append the logical operator and condition string to the conditions array
-                $params[$paramName] = $c['value']; // Store the parameter name and value for binding
+                $this->params[$paramName] = $c['value']; // Store the parameter name and value for binding
             }
-            $query .= " WHERE " . implode(' ', $conds);
+            $this->query .= " WHERE " . implode(' ', $conds);
         }
 
-        $query .= !empty($this->orderBy) ? " ORDER BY {$this->orderBy}" : '';
-        $query .= !empty($this->limit) ? " LIMIT {$this->limit}" : '';
-        $this->stmt = $this->pdo->prepare($query);
-        foreach ($params as $paramName => $value) { $this->stmt->bindValue($paramName, $value); }
+        $this->query .= !empty($this->orderBy) ? " ORDER BY {$this->orderBy}" : '';
+        $this->query .= !empty($this->limit) ? " LIMIT {$this->limit}" : '';
+        $this->stmt = $this->pdo->prepare($this->query);
+        foreach ($this->params as $paramName => $value) { $this->stmt->bindValue($paramName, $value); }
         $this->stmt->execute();
 
         return $this->stmt->fetchAll(\PDO::FETCH_FUNC, function ($json) {
