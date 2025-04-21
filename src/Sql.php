@@ -54,6 +54,7 @@ abstract class GenericSql
     public string|int $limit = "ALL";
     public string $query = "";
     public array $params = [];
+    public int $jsonEncodeOptions = JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_IGNORE;
 
     public function __construct(PDO $pdo, string $table)
     {
@@ -81,7 +82,7 @@ abstract class GenericSql
     public function toJson(array | object $doc, $uuid)
     {
         $doc['uuid'] = $uuid;
-        return json_encode($doc);
+        return json_encode($doc, $this->jsonEncodeOptions);
     }
 
     /**
@@ -158,7 +159,9 @@ abstract class GenericSql
         $uuid = $doc['uuid'] ?? $this->uuid();
         $doc = $this->toJson($doc, $uuid);
         $cond = "RETURNING uuid";
-        $this->stmt = $this->pdo->prepare("INSERT INTO {$this->schema}.{$this->table} ({$this->dataColumn}) VALUES (:doc) {$cond}");
+        $this->query = "INSERT INTO {$this->schema}.{$this->table} ({$this->dataColumn}) VALUES (:doc) {$cond}";
+        $this->params = [':doc' => $doc];
+        $this->stmt = $this->pdo->prepare($this->query);
         $this->stmt->bindParam(':doc', $doc);
         $this->stmt->execute();
         return $this->stmt->fetchColumn();
@@ -189,13 +192,17 @@ abstract class GenericSql
         $doc = $this->toJson($doc, $uuid);
         $cond = $this->upsertString . " RETURNING uuid";
         try {
-            $this->stmt = $this->pdo->prepare("INSERT INTO {$this->schema}.{$this->table} ({$this->dataColumn}) VALUES (:doc) {$cond}");
+            $this->query = "INSERT INTO {$this->schema}.{$this->table} ({$this->dataColumn}) VALUES (:doc) {$cond}";
+            $this->params = [':doc' => $doc];
+            $this->stmt = $this->pdo->prepare($this->query);
             $this->stmt->bindParam(':doc', $doc);
             $this->stmt->execute();
         } catch (\Exception $e) {
             if (!$handleOtherUniqueConstraints) { throw $e; }
             $this->handleUpsertException($e);
-            $this->stmt = $this->pdo->prepare("SELECT uuid FROM {$this->schema}.{$this->table} WHERE nonce = decode(md5((:doc::jsonb - 'uuid')::text), 'hex')");
+            $this->query = "SELECT uuid FROM {$this->schema}.{$this->table} WHERE nonce = decode(md5((:doc::jsonb - 'uuid')::text), 'hex')";
+            $this->params = [':doc' => $doc];
+            $this->stmt = $this->pdo->prepare($this->query);
             $this->stmt->bindParam(':doc', $doc);
             $this->stmt->execute();
         }
@@ -261,7 +268,7 @@ abstract class GenericSql
             $this->pdo->rollBack();
             throw $e;
         }
-        return $uuids;
+        return $uuids;re
     }
 
     /**
@@ -277,9 +284,11 @@ abstract class GenericSql
      */
     public function get(string $uuid): bool | array
     {
-        $query = "SELECT {$this->selectModifier} {$this->dataColumn} FROM {$this->schema}.{$this->table} WHERE {$this->uuidColumn} = :uuid";
-        $query .= !empty($this->orderBy) ? " ORDER BY {$this->orderBy}" : '';
-        $this->stmt = $this->pdo->prepare($query);
+        $this->query = "SELECT {$this->selectModifier} {$this->dataColumn} FROM {$this->schema}.{$this->table} WHERE {$this->uuidColumn} = :uuid";
+        $this->query .= !empty($this->orderBy) ? " ORDER BY {$this->orderBy}" : '';
+        $this->params = [':uuid' => $uuid];
+
+        $this->stmt = $this->pdo->prepare($this->query);
         $this->stmt->bindParam(':uuid', $uuid);
         $this->stmt->execute();
         $res = $this->stmt->fetchColumn();
@@ -303,7 +312,7 @@ abstract class GenericSql
     public function update(string $uuid, array | object $body): void
     {
         if (((array) $body)['uuid'] !== $uuid) { throw new \Exception('Document UUID doesn\'t match update UUID.'); }
-        $doc = json_encode($body);
+        $doc = json_encode($body, $this->jsonEncodeOptions);
         $this->stmt = $this->pdo->prepare("UPDATE {$this->schema}.{$this->table} SET {$this->dataColumn} = :doc, updated_at = CURRENT_TIMESTAMP WHERE {$this->uuidColumn} = :uuid");
         $this->stmt->bindParam(':doc', $doc);
         $this->stmt->bindParam(':uuid', $uuid);
