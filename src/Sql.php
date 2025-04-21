@@ -268,7 +268,7 @@ abstract class GenericSql
             $this->pdo->rollBack();
             throw $e;
         }
-        return $uuids;re
+        return $uuids;
     }
 
     /**
