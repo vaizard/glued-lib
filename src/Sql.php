@@ -372,6 +372,10 @@ abstract class GenericSql
         foreach ($this->params as $paramName => $value) { $this->stmt->bindValue($paramName, $value); }
         $this->stmt->execute();
 
+        // cleanup
+        $this->wheres = [];
+        $this->limit = "ALL";
+
         return $this->stmt->fetchAll(\PDO::FETCH_FUNC, function ($json) {
             return json_decode($json, true);
         });
