@@ -250,7 +250,7 @@ class JWT extends Bearer
         if (!$res) {
             $doc = [
                 'uuid' => $this->jwtClaims['sub'],
-                'profiles' => [
+                'profile' => [
                     'name' => $this->jwtClaims['name'],
                     'email' => $this->jwtClaims['email'],
                     'username' => $this->jwtClaims['preferred_username']
@@ -263,7 +263,7 @@ class JWT extends Bearer
                     ]
                 ]
             ];
-            $res = $db->create($doc);
+            $res = $db->upsert($doc);
         }
         $this->pdo->commit();
         return ($doc ?? $res);
