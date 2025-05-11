@@ -253,13 +253,13 @@ class JWT extends Bearer
                 'profile' => [
                     'name' => $this->jwtClaims['name'],
                     'email' => $this->jwtClaims['email'],
-                    'username' => $this->jwtClaims['preferred_username']
+                    'handle' => $this->jwtClaims['preferred_username']
                 ],
                 'claims' => [
                     $this->jwtClaims['iss'] => [
                         'name' => $this->jwtClaims['name'],
                         'email' => $this->jwtClaims['email'],
-                        'username' => $this->jwtClaims['preferred_username'],
+                        'preferred_username' => $this->jwtClaims['preferred_username'],
                     ]
                 ]
             ];
