@@ -69,10 +69,18 @@ class ComposerHooks
                 $server = null;
             }
 
+            $firstOp = null;
+            foreach ($details as $child) {
+                if (is_array($child) && isset($child['summary'])) {
+                    $firstOp = $child;
+                    break;
+                }
+            }
+
             $routes[$details['x-glued-pathname']] = [
                 'pattern' => $absolutePath . $path,
-                'label' => $details['get']['summary'],
-                'dscr' => $details['get']['description'],
+                'label'    => $firstOp['summary']    ?? '',
+                'dscr'     => $firstOp['description'] ?? '',
                 'provides' => $details['x-glued-provides'] ?? throw new \Exception("x-glued-provides key missing for {$path}"),
                 'service' => $openapiArray['info']['x-glued-service'] ?? throw new \Exception("x-glued-service key missing for {$path}"),
                 'methods' => $methods,
