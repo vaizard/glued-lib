@@ -107,7 +107,27 @@ abstract class AbstractService extends AbstractBlank
     public function getValidatedRequestBody(Request $request, Response $response, $schema = false): object|array
     {
         if (($request->getHeader('Content-Type')[0] ?? '') != 'application/json') { throw new \Exception('Content-Type header missing or not set to `application/json`.', 400); };
-        $doc = json_decode(json_encode($request->getParsedBody()));
+
+        /*
+        // TODO: TEST IF IMPROVEMENT
+        $ct = $request->getHeaderLine('Content-Type');
+        if (!preg_match('#^application/json\b#i', $ct)) {
+            throw new \Exception('Content-Type must be application/json.', 400);
+        }
+        */
+
+        try {
+            $raw = (string) $request->getBody();
+            $doc = json_decode($raw === '' ? 'null' : $raw, /* assoc */ false, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            throw new \Exception('Invalid JSON: '.$e->getMessage(), 400);
+        }
+
+        // Only arrays or objects are accepted as top-level JSON
+        if (!is_array($doc) && !is_object($doc)) {
+            throw new \Exception('JSON root must be an object or array.', 400);
+        }
+        //$doc = json_decode(json_encode($request->getParsedBody()));
         if ($schema !== false) {
             $validation = $this->validator->validate((object) $doc, $schema);
             if ($validation->isValid()) { $res = $doc; }
