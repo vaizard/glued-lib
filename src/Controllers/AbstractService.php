@@ -98,13 +98,13 @@ abstract class AbstractService extends AbstractBlank
      * @param Response $response The PSR-7 Response object, unused in this method.
      * @param mixed    $schema   The JSON schema to validate against. If false, skips validation.
      *
-     * @return object The validated and parsed JSON object from the request body.
+     * @return object|array The validated and parsed JSON object / array of objects from the request body.
      *
      * @throws Exception If the `Content-Type` header is not `application/json`.
      * @throws ExtendedException If the JSON body is invalid according to the provided schema, including validation error details.
      */
 
-    public function getValidatedRequestBody(Request $request, Response $response, $schema = false): object
+    public function getValidatedRequestBody(Request $request, Response $response, $schema = false): object|array
     {
         if (($request->getHeader('Content-Type')[0] ?? '') != 'application/json') { throw new \Exception('Content-Type header missing or not set to `application/json`.', 400); };
         $doc = json_decode(json_encode($request->getParsedBody()));
