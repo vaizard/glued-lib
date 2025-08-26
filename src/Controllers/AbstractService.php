@@ -104,21 +104,15 @@ abstract class AbstractService extends AbstractBlank
      * @throws ExtendedException If the JSON body is invalid according to the provided schema, including validation error details.
      */
 
+    /*
     public function getValidatedRequestBody(Request $request, Response $response, $schema = false): object|array
     {
         if (($request->getHeader('Content-Type')[0] ?? '') != 'application/json') { throw new \Exception('Content-Type header missing or not set to `application/json`.', 400); };
 
-        /*
-        // TODO: TEST IF IMPROVEMENT
-        $ct = $request->getHeaderLine('Content-Type');
-        if (!preg_match('#^application/json\b#i', $ct)) {
-            throw new \Exception('Content-Type must be application/json.', 400);
-        }
-        */
 
         try {
             $raw = (string) $request->getBody();
-            $doc = json_decode($raw === '' ? 'null' : $raw, /* assoc */ false, 512, JSON_THROW_ON_ERROR);
+            $doc = json_decode($raw === '' ? 'null' : $raw,false, 512, JSON_THROW_ON_ERROR);
         } catch (\JsonException $e) {
             throw new \Exception('Invalid JSON: '.$e->getMessage(), 400);
         }
@@ -139,6 +133,44 @@ abstract class AbstractService extends AbstractBlank
             }
         }
         return $doc;
+    }
+    */
+
+    public function getValidatedRequestBody(
+        Request $request,
+        Response $response,
+        object|false $schema = false
+    ): mixed {
+        // Accept application/json and */*+json (e.g., application/merge-patch+json)
+        $ct = $request->getHeaderLine('Content-Type');
+        if ($ct === '' || !preg_match('#^application/(?:[\w.+-]+\+)?json\b#i', $ct)) {
+            throw new \Exception('Unsupported Media Type: Content-Type must be application/json.', 415);
+        }
+
+        $raw = (string)$request->getBody();
+        if ($raw === '') {
+            throw new \Exception('Empty request body; valid JSON required.', 400);
+        }
+
+        try {
+            // $assoc = false => preserve JSON types:
+            // [] -> array, {} -> stdClass, "x" -> string, 42 -> int/float, true -> bool, null -> null
+            $doc = json_decode($raw, false, 512, JSON_THROW_ON_ERROR | JSON_BIGINT_AS_STRING);
+        } catch (\JsonException $e) {
+            throw new \Exception('Invalid JSON: '.$e->getMessage(), 400);
+        }
+
+        if ($schema !== false) {
+            // Do NOT cast; pass the decoded JSON as-is
+            $validation = $this->validator->validate($doc, $schema);
+            if ($validation->hasError()) {
+                $formatter = new ErrorFormatter();
+                $details = $formatter->formatOutput($validation->error(), 'basic');
+                throw new ExtendedException('Schema validation failed.', 400, details: $details);
+            }
+        }
+
+        return $doc; // mixed: array|object|string|int|float|bool|null
     }
 
 }
