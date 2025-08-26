@@ -47,5 +47,22 @@
 		"allow-plugins": {
 			"ergebnis/composer-normalize": true
 		}
-	}
+	},
+	"bin": [
+		"src/Scripts/backup.sh",
+		"src/Scripts/deploy-deployment.sh",
+		"src/Scripts/initpaths.sh",
+		"src/Scripts/loadenv.sh",
+		"src/Scripts/migrate-dump.sh",
+		"src/Scripts/migrate-mk-migration.sh",
+		"src/Scripts/migrate-reset.sh",
+		"src/Scripts/migrate-status.sh",
+		"src/Scripts/migrate-test.sh",
+		"src/Scripts/migrate.sh",
+		"src/Scripts/nginx-reload.sh",
+		"src/Scripts/nginx.sh",
+		"src/Scripts/php-fpm-reload.sh",
+		"src/Scripts/php-fpm.sh",
+		"src/Scripts/rebuild-datacache.sh"
+	]
 }
