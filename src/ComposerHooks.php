@@ -19,13 +19,11 @@ class ComposerHooks
 {
     private static function loadEnvIntoGetenv(): void
     {
-        // Build a repository that writes to getenv()/putenv()
         $repo = RepositoryBuilder::createWithDefaultAdapters()
-            ->addAdapter(PutenvAdapter::class)
-            ->immutable()      // keep real OS env authoritative; remove if you want .env to override
+            ->addAdapter(PutenvAdapter::class) // write to getenv()/putenv()
+            ->immutable()                      // keep OS env authoritative (remove to let .env override)
             ->make();
-
-        self::loadEnvIntoGetenv();
+        Dotenv::create($repo, __ROOT__)->safeLoad();
     }
 
     public static function preInstall(Event $event): void
@@ -106,7 +104,7 @@ class ComposerHooks
 
         // Load .env only when not in production
         if (!getenv('GLUED_PROD')) {
-            Dotenv::createImmutable(__ROOT__)->safeLoad();
+            self::loadEnvIntoGetenv();
             echo "[INFO] GLUED_PROD not set, loading `" . __ROOT__ . "/.env`" . PHP_EOL;
         } else {
             echo "[INFO] GLUED_PROD set, ignoring `" . __ROOT__ . "/.env`" . PHP_EOL;
@@ -259,7 +257,7 @@ class ComposerHooks
     public static function getEnv(Event $event): void
     {
         if (!getenv('GLUED_PROD')) {
-            Dotenv::createImmutable(__ROOT__)->safeLoad();
+            self::loadEnvIntoGetenv();
             echo "[INFO] GLUED_PROD not set, loading `" . __ROOT__ . "/.env`" . PHP_EOL;
         } else {
             echo "[INFO] GLUED_PROD set, ignoring `" . __ROOT__ . "/.env`" . PHP_EOL;
@@ -282,7 +280,7 @@ class ComposerHooks
         echo "[NOTE] STARTING THE CONFIGURATION TESTING AND SETUP TOOL" . PHP_EOL . PHP_EOL;
 
         if (!getenv('GLUED_PROD')) {
-            Dotenv::createImmutable(__ROOT__)->safeLoad();
+            self::loadEnvIntoGetenv();
             echo "[INFO] GLUED_PROD not set, loading `" . __ROOT__ . "/.env`" . PHP_EOL;
         } else {
             echo "[INFO] GLUED_PROD set, ignoring `" . __ROOT__ . "/.env`" . PHP_EOL;
