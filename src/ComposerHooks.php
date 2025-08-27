@@ -126,8 +126,8 @@ class ComposerHooks
             'GLUED_PROD'      => getenv('GLUED_PROD') ?: '',
             'MYSQL_HOSTNAME'  => getenv('MYSQL_HOSTNAME') ?: '',
             'MYSQL_USERNAME'  => getenv('MYSQL_USERNAME') ?: '',
-            'MYSQL_PASSWORD'  => getenv('MYSQL_PASSWORD') ?: '',
-            'MYSQL_DATABASE'  => getenv('MYSQL_DATABASE') ?: '',
+            'PGSQL_PASSWORD'  => getenv('PGSQL_PASSWORD') ?: '',
+            'PGSQL_DATABASE'  => getenv('PGSQL_DATABASE') ?: '',
             'GEOIP'           => getenv('GEOIP') ?: '',
         ]);
 
@@ -269,8 +269,8 @@ class ComposerHooks
             'DATAPATH'   => getenv('DATAPATH') ?: '',
             'IDENTITY'   => getenv('IDENTITY') ?: '',
             'GLUED_PROD' => getenv('GLUED_PROD') ?: '',
-            'MYSQL_HOSTNAME' => getenv('MYSQL_HOSTNAME') ?: '',
-            'MYSQL_DATABASE' => getenv('MYSQL_DATABASE') ?: '',
+            'PGSQL_HOSTNAME' => getenv('PGSQL_HOSTNAME') ?: '',
+            'PGSQL_DATABASE' => getenv('PGSQL_DATABASE') ?: '',
         ]);
     }
 
@@ -320,6 +320,7 @@ class ComposerHooks
         }
         echo "[PASS] routes rebuilt." . PHP_EOL;
 
+        /*
         // MYSQL
         echo "[INFO] Ensuring MySQL connection works fine" . PHP_EOL;
         $link = mysqli_connect(
@@ -336,7 +337,7 @@ class ComposerHooks
         }
         echo "[PASS] MySQL connection OK to " . mysqli_get_host_info($link) . PHP_EOL;
         mysqli_close($link);
-
+        */
         // Geolite2
         echo "[INFO] Setting up geoip" . PHP_EOL;
         $geoipKey = getenv('GEOIP');
