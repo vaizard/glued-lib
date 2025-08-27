@@ -10,11 +10,24 @@ use PharData;
 use Psr\Log\NullLogger;
 use ParagonIE\CSPBuilder\CSPBuilder;
 use Symfony\Component\Yaml\Yaml;
+use Dotenv\Repository\RepositoryBuilder;
+use Dotenv\Repository\Adapter\PutenvAdapter;
 
 define("__ROOT__", getcwd());
 
 class ComposerHooks
 {
+    private static function loadEnvIntoGetenv(): void
+    {
+        // Build a repository that writes to getenv()/putenv()
+        $repo = RepositoryBuilder::createWithDefaultAdapters()
+            ->addAdapter(PutenvAdapter::class)
+            ->immutable()      // keep real OS env authoritative; remove if you want .env to override
+            ->make();
+
+        self::loadEnvIntoGetenv();
+    }
+
     public static function preInstall(Event $event): void
     {
         echo "[NOTE] INSTALLING GLUED";
