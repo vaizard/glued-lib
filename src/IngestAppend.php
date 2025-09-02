@@ -29,11 +29,12 @@ final class IngestAppend extends Sql2
             'meta', {$this->metaCol}
                 || jsonb_build_object(
                     'internalUuid', {$this->uuidCol}::text,
-                    'internalVersion', {$this->versionCol}::text
+                    'internalVersion', {$this->versionCol}::text,
+                    'iat', iat,
+                    'uat', uat,
+                    'sat', sat,
+                    'nonce', nonce,
                 ),
-            'iat', iat,
-            'uat', uat,
-            'sat', sat
         )
     )";
     }
