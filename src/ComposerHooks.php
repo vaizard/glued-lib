@@ -185,9 +185,11 @@ class ComposerHooks
 
         EOT;
 
+        $appbase = getenv('APPBASE') ?: '/var/www/html';
         echo "[INFO] Generating common server name." . PHP_EOL;
         $output = <<<EOT
         server_name {$settings['glued']['hostname']};
+        set $appbase "/var/www/html";   # static assignment
         EOT;
         file_put_contents('/etc/nginx/snippets/server/generated_name.conf', $comment.$output);
 
