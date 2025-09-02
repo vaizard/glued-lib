@@ -93,7 +93,6 @@ CREATE TABLE glued.ingest (
   doc      jsonb NOT NULL,
   meta     jsonb NOT NULL DEFAULT '{}'::jsonb,
   nonce    bytea GENERATED ALWAYS AS (decode(md5((doc::text)), 'hex')) STORED,
-
   iat      timestamptz DEFAULT now() NOT NULL,
   sat      text,
   ext_id   text NOT NULL,
@@ -204,6 +203,9 @@ abstract class BaseRepo
 
     /** @var string Document UUID column. */
     protected string $uuidCol = 'uuid';
+
+    /** @var string Document version UUID column. */
+    protected string  $versionCol = 'version';
 
     /** @var string JSONB document (primary payload). */
     protected string $docCol  = 'doc';
@@ -358,9 +360,27 @@ abstract class BaseRepo
  */
 final class IngestAppend extends BaseRepo
 {
+
     public function __construct(PDO $pdo, string $table = '', ?string $schema = 'glued')
     {
         parent::__construct($pdo, $table, $schema);
+    }
+
+    protected function selectEnvelope(): string
+    {
+        return "{$this->selectModifier} (
+        {$this->docCol}
+        || jsonb_build_object(
+            'meta', {$this->metaCol}
+                || jsonb_build_object(
+                    'internalUuid', {$this->uuidCol}::text,
+                    'internalVersion', {$this->versionCol}::text
+                ),
+            'iat', iat,
+            'uat', uat,
+            'sat', sat
+        )
+    )";
     }
 
     /**
