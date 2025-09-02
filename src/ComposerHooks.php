@@ -240,13 +240,13 @@ class ComposerHooks
 
         file_put_contents('/etc/nginx/conf.d/cors_map.conf', $comment.$output);
 
-        echo "[INFO] Generating openapi server name." . PHP_EOL;
+        echo "[INFO] Generating config-time env maps." . PHP_EOL;
         $output = <<<EOT
             map "" \$appbase {
               default "/var/www/html";
             }
             EOT;
-        file_put_contents('/etc/nginx/conf.d/configure_time_env_maps.conf', $comment.$output);
+        file_put_contents('/etc/nginx/conf.d/config_time_env_maps.conf', $comment.$output);
 
         echo "[INFO] Generating nginx cors headers." . PHP_EOL;
         $hdr_allow    = implode(', ', $settings['nginx']['cors']['headers.allow']);
