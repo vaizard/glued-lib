@@ -217,7 +217,7 @@ class ComposerHooks
         EOT;
         file_put_contents('/etc/nginx/snippets/server/generated_ssl_stapling.conf', $comment.$output);
 
-        echo "[INFO] Generating nginx cors map." . PHP_EOL;
+        echo "[INFO] Generating cors and env maps." . PHP_EOL;
 
         $origins = $settings['nginx']['cors']['origin'];
         if (!is_array($origins)) {
@@ -236,17 +236,12 @@ class ComposerHooks
         $output .= "    default '';" . PHP_EOL;
         $output .= '    1 $http_origin;' . PHP_EOL;
         $output .= "    2 '*';" . PHP_EOL;
+        $output .= "}" . PHP_EOL . PHP_EOL;
+        $output .= "# ENV maps" . PHP_EOL;
+        $output .= 'map "" $appbase {' . PHP_EOL;
+        $output .= '    default "/var/www/html";' . PHP_EOL;
         $output .= "}" . PHP_EOL;
-
         file_put_contents('/etc/nginx/conf.d/cors_map.conf', $comment.$output);
-
-        echo "[INFO] Generating config-time env maps." . PHP_EOL;
-        $output = <<<EOT
-            map "" \$appbase {
-              default "/var/www/html";
-            }
-            EOT;
-        file_put_contents('/etc/nginx/conf.d/config_time_env_maps.conf', $comment.$output);
 
         echo "[INFO] Generating nginx cors headers." . PHP_EOL;
         $hdr_allow    = implode(', ', $settings['nginx']['cors']['headers.allow']);
