@@ -189,9 +189,6 @@ class ComposerHooks
         echo "[INFO] Generating common server name." . PHP_EOL;
         $output = <<<EOT
         server_name {$settings['glued']['hostname']};
-        map "" \$appbase {
-           default "/var/www/html";
-        }
         EOT;
         file_put_contents('/etc/nginx/snippets/server/generated_name.conf', $comment.$output);
 
@@ -242,6 +239,14 @@ class ComposerHooks
         $output .= "}" . PHP_EOL;
 
         file_put_contents('/etc/nginx/conf.d/cors_map.conf', $comment.$output);
+
+        echo "[INFO] Generating openapi server name." . PHP_EOL;
+        $output = <<<EOT
+            map "" \$appbase {
+              default "/var/www/html";
+            }
+            EOT;
+        file_put_contents('/etc/nginx/conf.d/configure_time_env_maps.conf', $comment.$output);
 
         echo "[INFO] Generating nginx cors headers." . PHP_EOL;
         $hdr_allow    = implode(', ', $settings['nginx']['cors']['headers.allow']);
