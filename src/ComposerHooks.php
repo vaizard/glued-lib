@@ -241,7 +241,7 @@ class ComposerHooks
         $output .= 'map "" $appbase {' . PHP_EOL;
         $output .= '    default "/var/www/html";' . PHP_EOL;
         $output .= "}" . PHP_EOL;
-        file_put_contents('/etc/nginx/conf.d/cors_map.conf', $comment.$output);
+        file_put_contents('/etc/nginx/conf.d/cors_env_maps.conf', $comment.$output);
 
         echo "[INFO] Generating nginx cors headers." . PHP_EOL;
         $hdr_allow    = implode(', ', $settings['nginx']['cors']['headers.allow']);
