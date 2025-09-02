@@ -187,7 +187,7 @@ final class UuidTools
  *    SELECT doc || jsonb_build_object('meta', meta, 'iat', iat, 'uat', uat, 'dat', dat, 'sat', sat, 'nbf', nbf, 'exp', exp)
  *    -- keys on the right overwrite same keys in `doc`.
  */
-abstract class BaseRepo
+abstract class Sql2
 {
     /** @var \PDO PDO instance for database connection. */
     public $pdo;
@@ -349,69 +349,6 @@ abstract class BaseRepo
         $this->stmt->execute();
         $this->reset();
         return $this->stmt->fetchAll(PDO::FETCH_FUNC, fn(string $json) => json_decode($json, true));
-    }
-}
-
-/**
- * Raw ingest repository (append-only; as-received feed).
- *
- * Table contract (ingest):
- * - PK (nonce, iat), doc, meta, ext_id, iat, sat
- */
-final class IngestAppend extends BaseRepo
-{
-
-    public function __construct(PDO $pdo, string $table = '', ?string $schema = 'glued')
-    {
-        parent::__construct($pdo, $table, $schema);
-    }
-
-    protected function selectEnvelope(): string
-    {
-        return "{$this->selectModifier} (
-        {$this->docCol}
-        || jsonb_build_object(
-            'meta', {$this->metaCol}
-                || jsonb_build_object(
-                    'internalUuid', {$this->uuidCol}::text,
-                    'internalVersion', {$this->versionCol}::text
-                ),
-            'iat', iat,
-            'uat', uat,
-            'sat', sat
-        )
-    )";
-    }
-
-    /**
-     * Append a raw ingest row.
-     *
-     * @return array{uuid:string,version:string,iat:string}
-     */
-    public function log(array|object $doc, string $extId, array|object $meta = [], ?string $sat = null): array
-    {
-        [$d, $m] = $this->normalize($doc, $meta);
-        $docJson  = json_encode($d, $this->jsonFlags);
-        $metaJson = json_encode($m, $this->jsonFlags);
-
-        $this->query = "
-        INSERT INTO {$this->schema}.{$this->table} (doc, meta, ext_id, sat, iat)
-        VALUES (:doc::jsonb, :meta::jsonb, :ext, :sat, now())
-        RETURNING uuid, version, iat
-        ";
-        $this->params = [
-            ':doc'  => $docJson,
-            ':meta' => $metaJson,
-            ':ext'  => $extId,
-            ':sat'  => $sat,
-        ];
-        $this->stmt = $this->pdo->prepare($this->query);
-        foreach ($this->params as $k => $v) $this->stmt->bindValue($k, $v);
-        $this->stmt->execute();
-        /** @var array<string,string> */
-        $row = (array)$this->stmt->fetch(PDO::FETCH_ASSOC);
-        $this->reset();
-        return $row;
     }
 }
 
