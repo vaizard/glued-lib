@@ -129,6 +129,7 @@ class ComposerHooks
             'PGSQL_PASSWORD'  => getenv('PGSQL_PASSWORD') ?: '',
             'PGSQL_DATABASE'  => getenv('PGSQL_DATABASE') ?: '',
             'GEOIP'           => getenv('GEOIP') ?: '',
+            'APPBASE'         => getenv('APPBASE') ?: ''
         ]);
 
         // Load defaults + all module configs
@@ -185,7 +186,7 @@ class ComposerHooks
 
         EOT;
 
-        $appbase = getenv('APPBASE') ?: '/var/www/html';
+        $envAppbase = getenv('APPBASE') ?: '/var/www/html';
         echo "[INFO] Generating common server name." . PHP_EOL;
         $output = <<<EOT
         server_name {$settings['glued']['hostname']};
@@ -239,7 +240,7 @@ class ComposerHooks
         $output .= "}" . PHP_EOL . PHP_EOL;
         $output .= "# ENV maps" . PHP_EOL;
         $output .= 'map "" $appbase {' . PHP_EOL;
-        $output .= '    default "/var/www/html";' . PHP_EOL;
+        $output .= "    default \"$envAppbase\";" . PHP_EOL;
         $output .= "}" . PHP_EOL;
         file_put_contents('/etc/nginx/conf.d/cors_env_maps.conf', $comment.$output);
 
@@ -273,6 +274,7 @@ class ComposerHooks
             'DATAPATH'   => getenv('DATAPATH') ?: '',
             'IDENTITY'   => getenv('IDENTITY') ?: '',
             'GLUED_PROD' => getenv('GLUED_PROD') ?: '',
+            'APPBASE' => getenv('APPBASE') ?: '',
             'PGSQL_HOSTNAME' => getenv('PGSQL_HOSTNAME') ?: '',
             'PGSQL_DATABASE' => getenv('PGSQL_DATABASE') ?: '',
         ]);
