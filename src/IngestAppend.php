@@ -26,18 +26,19 @@ final class IngestAppend extends Sql2
         return "{$this->selectModifier} (
         {$this->docCol}
         || jsonb_build_object(
-            'meta', {$this->metaCol}
+            '_meta', {$this->metaCol}
                 || jsonb_build_object(
                     'internalUuid', {$this->uuidCol}::text,
                     'internalVersion', {$this->versionCol}::text,
                     'iat', iat,
                     'uat', uat,
                     'sat', sat,
-                    'nonce', nonce,
-                ),
+                    'nonce', nonce
+                )
         )
     )";
     }
+
 
     /**
      * Append a raw ingest row.
