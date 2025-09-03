@@ -45,7 +45,7 @@ final class IngestAppend extends Sql2
      *
      * @return array{uuid:string,version:string,iat:string}
      */
-    public function log(array|object $doc, string $extId, array|object $meta = [], ?string $sat = null): array
+    public function log(array|object $doc, string $extId, array|object $meta = new \stdClass(), ?string $sat = null): array
     {
         [$d, $m] = $this->normalize($doc, $meta);
         $docJson  = json_encode($d, $this->jsonFlags);
@@ -54,7 +54,7 @@ final class IngestAppend extends Sql2
         $this->query = "
         INSERT INTO {$this->schema}.{$this->table} (doc, meta, ext_id, sat, iat)
         VALUES (:doc::jsonb, :meta::jsonb, :ext, :sat, now())
-        RETURNING uuid, version, iat
+        RETURNING uuid, version, iat, nonce
         ";
         $this->params = [
             ':doc'  => $docJson,
