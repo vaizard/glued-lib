@@ -33,7 +33,7 @@ final class IngestAppend extends Sql2
                     'iat', iat,
                     'uat', uat,
                     'sat', sat,
-                    'nonce', nonce
+                    'nonce', encode(nonce, 'hex')
                 )
         )
     )";

@@ -305,6 +305,7 @@ abstract class Sql2
             'iat', iat,
             'uat', uat,
             'sat', sat,
+            'nonce', encode(nonce, 'hex')
         )";
     }
 
