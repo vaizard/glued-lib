@@ -54,7 +54,7 @@ final class IngestAppend extends Sql2
         $this->query = "
         INSERT INTO {$this->schema}.{$this->table} (doc, meta, ext_id, sat, iat)
         VALUES (:doc::jsonb, :meta::jsonb, :ext, :sat, now())
-        RETURNING uuid, version, iat, nonce
+        RETURNING uuid, version, iat, encode(nonce, 'hex') AS nonce
         ";
         $this->params = [
             ':doc'  => $docJson,
