@@ -92,8 +92,8 @@ CREATE POLICY logged_insert_only ON glued.logged_doc FOR INSERT WITH CHECK (true
  */
 final class DbMutable extends Base
 {
-    /** @var string Target history table (append-only) */
-    private string $logTable;
+    /** @var ?string Target history table (append-only) */
+    private ?string $logTable;
 
     public function __construct(PDO $pdo, string $table, ?string $logTable = null, ?string $schema = 'glued')
     {
