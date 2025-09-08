@@ -220,10 +220,10 @@ abstract class Base
     protected array $wheres = [];
 
     /** @var string|int Builder state: limit condition */
-    protected string|int $limit = 'ALL';
+    public string|int $limit = 'ALL';
 
     /** @var ?string Builder state: orderBy condition */
-    protected ?string $orderBy = null;
+    public ?string $orderBy = null;
 
     /** @var string Builder state: A select modifier */
     public string $selectModifier = "";
