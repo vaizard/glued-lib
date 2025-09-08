@@ -109,7 +109,19 @@ final class DbMutable extends Base
      * @param string|null  $sat   Raw source timestamp
      * @return string             Document UUID
      */
-    public function upsert(array|object $doc, array|object $meta = [], ?string $sat = null): string
+    /**
+     * Upsert mutable row (NO LOG), idempotent.
+     *
+     * - Inserts when uuid is new.
+     * - On conflict, updates only if (doc, meta, sat) changed; otherwise it's a no-op (uat not bumped).
+     * - Always returns: uuid, version, iat, nonce(hex).
+     *
+     * @param array|object $doc   JSON document; if no 'uuid', a new one is generated and injected.
+     * @param array|object $meta  JSON meta
+     * @param string|null  $sat   Raw source timestamp
+     * @return array{uuid:string,version:string,iat:string,nonce:string}
+     */
+    public function upsert(array|object $doc, array|object $meta = new \stdClass(), ?string $sat = null): array
     {
         $uuid = (string)($doc['uuid'] ?? Uuid::uuid4());
         [$d, $m] = $this->normalize($doc, $meta, $uuid);
@@ -117,27 +129,54 @@ final class DbMutable extends Base
         $metaJson = json_encode($m, $this->jsonFlags);
 
         $this->query = "
-        INSERT INTO {$this->schema}.{$this->table} (doc, meta, sat, iat, uat)
-        VALUES (:doc::jsonb, :meta::jsonb, :sat, now(), now())
-        ON CONFLICT ({$this->uuidCol}) DO UPDATE
-          SET doc = EXCLUDED.doc,
-              meta = EXCLUDED.meta,
-              sat  = EXCLUDED.sat,
-              uat  = now()
-        RETURNING {$this->uuidCol}
-        ";
+    WITH up AS (
+      INSERT INTO {$this->schema}.{$this->table} AS t (doc, meta, sat, iat, uat)
+      VALUES (:doc::jsonb, :meta::jsonb, :sat, now(), now())
+      ON CONFLICT ({$this->uuidCol}) DO UPDATE
+        SET doc = EXCLUDED.doc,
+            meta = EXCLUDED.meta,
+            sat  = EXCLUDED.sat,
+            uat  = now()
+        -- idempotent: only update when something actually changed
+        WHERE (t.doc, t.meta, t.sat) IS DISTINCT FROM (EXCLUDED.doc, EXCLUDED.meta, EXCLUDED.sat)
+      RETURNING
+        t.{$this->uuidCol} AS uuid,
+        t.version,
+        t.iat,
+        encode(t.nonce, 'hex') AS nonce
+    )
+    -- prefer the row affected by INSERT/UPDATE; if no-op, fall back to the existing row
+    SELECT u.uuid, u.version, u.iat, u.nonce
+      FROM up u
+    UNION ALL
+    SELECT t.{$this->uuidCol} AS uuid,
+           t.version,
+           t.iat,
+           encode(t.nonce, 'hex') AS nonce
+      FROM {$this->schema}.{$this->table} t
+     WHERE t.{$this->uuidCol} = :uuid
+       AND NOT EXISTS (SELECT 1 FROM up)
+    LIMIT 1;
+    ";
+
         $this->params = [
             ':doc'  => $docJson,
             ':meta' => $metaJson,
             ':sat'  => $sat,
+            ':uuid' => $uuid,
         ];
+
         $this->stmt = $this->pdo->prepare($this->query);
-        foreach ($this->params as $k => $v) $this->stmt->bindValue($k, $v);
+        foreach ($this->params as $k => $v) { $this->stmt->bindValue($k, $v); }
         $this->stmt->execute();
-        $uuidRet = (string)$this->stmt->fetchColumn();
+
+        /** @var array{uuid:string,version:string,iat:string,nonce:string} $row */
+        $row = (array)$this->stmt->fetch(PDO::FETCH_ASSOC);
         $this->reset();
-        return $uuidRet ?: $uuid;
+        // Fallback safety if SELECT returns nothing for some reason
+        return $row ?: ['uuid'=>$uuid, 'version'=>'', 'iat'=>'', 'nonce'=>''];
     }
+
 
     /**
      * Upsert mutable row and append to log (dedup by (uuid, nonce)).
