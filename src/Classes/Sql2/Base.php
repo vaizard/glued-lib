@@ -15,7 +15,6 @@ use Rs\Json\Merge\Patch as JsonMergePatch;
 
 DROP TABLE IF EXISTS glued.mutable_doc CASCADE;
 CREATE TABLE glued.mutable_doc (
-
     uuid     uuid GENERATED ALWAYS AS ((doc->>'uuid')::uuid) STORED NOT NULL,
     version  uuid DEFAULT uuidv7() NOT NULL,      -- monotonic-ish ids for server-side audit chains
     doc      jsonb NOT NULL,
@@ -25,25 +24,10 @@ CREATE TABLE glued.mutable_doc (
     uat      timestamptz DEFAULT now() NOT NULL,  -- updated at (set in UPDATE)
     dat      timestamptz,                         -- deleted at (soft-delete)
     sat      text,                                -- raw source timestamp (as-is string)
-    PRIMARY KEY (uuid),
-    UNIQUE (nonce)                                -- idempotency by content (uuid stripped from hash)
+    PRIMARY KEY (uuid)
 );
 CREATE INDEX mutable_doc_iat_desc ON glued.mutable_doc (iat DESC);
 CREATE INDEX mutable_doc_uat_desc ON glued.mutable_doc (uat DESC);
-
-DROP TABLE IF EXISTS glued.logged_doc CASCADE;
-CREATE TABLE glued.logged_doc (
-    uuid     uuid NOT NULL,
-    version  uuid DEFAULT uuidv7() NOT NULL,
-    doc      jsonb NOT NULL,
-    meta     jsonb NOT NULL DEFAULT '{}'::jsonb,
-    nonce    bytea GENERATED ALWAYS AS (decode(md5((doc - 'uuid')::text), 'hex')) STORED,
-    iat      timestamptz DEFAULT now() NOT NULL,
-    uat      timestamptz GENERATED ALWAYS AS (iat) VIRTUAL,
-    dat      timestamptz,
-    sat      text,
-    PRIMARY KEY (version)
-);
 
 -- =========================
 -- LOGGED (append only)
@@ -63,7 +47,7 @@ CREATE TABLE glued.logged_doc (
     nbf      timestamptz,
     exp      timestamptz,
     period   tstzrange  GENERATED ALWAYS AS (tstzrange(COALESCE(nbf, iat), COALESCE(exp, 'infinity'::timestamptz), '[)')) VIRTUAL,
-PRIMARY KEY (version)
+    PRIMARY KEY (version)
 );
 
 CREATE INDEX        logged_doc_uuid_iat_desc ON glued.logged_doc (uuid, iat DESC);
@@ -212,7 +196,7 @@ abstract class Base
     protected int $jsonFlags = JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_IGNORE;
 
     /** @var array Builder state: array of WHERE conditions */
-    protected array $wheres = [];
+    public array $wheres = [ ['column'=>'dat','op'=>'IS NOT NULL','value'=>null,'logical'=>'AND'] ];
 
     /** @var string|int Builder state: limit condition */
     public string|int $limit = 'ALL';
@@ -266,7 +250,7 @@ abstract class Base
     protected function reset(): void {
         $this->lastQueryString = $this->query;
         $this->lastQueryParams = $this->params;
-        $this->wheres = [];
+        $this->wheres => [ ['column'=>'dat','op'=>'IS NULL','value'=>null,'logical'=>'AND'] ];
         $this->limit = 'ALL';
         $this->orderBy = null;
         $this->query = '';
