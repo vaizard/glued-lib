@@ -250,7 +250,7 @@ abstract class Base
     protected function reset(): void {
         $this->lastQueryString = $this->query;
         $this->lastQueryParams = $this->params;
-        $this->wheres => [ ['column'=>'dat','op'=>'IS NULL','value'=>null,'logical'=>'AND'] ];
+        $this->wheres = [ ['column'=>'dat','op'=>'IS NULL','value'=>null,'logical'=>'AND'] ];
         $this->limit = 'ALL';
         $this->orderBy = null;
         $this->query = '';
