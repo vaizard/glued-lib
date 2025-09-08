@@ -1,7 +1,7 @@
 <?php
 
 declare(strict_types=1);
-namespace Glued\Lib;
+namespace Glued\Lib\Classes\Bearer;
 
 use Jose\Component\Checker\AlgorithmChecker;
 use Jose\Component\Checker\ClaimCheckerManager;
@@ -243,7 +243,7 @@ class JWT extends Bearer
      */
     public function matchToken(): array|object
     {
-        $db = new Sql($this->pdo, 'core_users');
+        $db = new \Glued\Lib\Sql($this->pdo, 'core_users');
         $this->pdo->beginTransaction();
 
         $res = $db->get($this->jwtClaims['sub']);

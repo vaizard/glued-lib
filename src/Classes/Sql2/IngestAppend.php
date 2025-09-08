@@ -1,7 +1,7 @@
 <?php
 
 declare(strict_types=1);
-namespace Glued\Lib;
+namespace Glued\Lib\Classes\Sql2;
 
 use \PDO;
 use Ramsey\Uuid\Uuid;
@@ -13,10 +13,10 @@ use Rs\Json\Merge\Patch as JsonMergePatch;
  * Table contract (ingest):
  * - PK (nonce, iat), doc, meta, ext_id, iat, sat
  */
-final class IngestAppend extends Sql2
+final class IngestAppend extends Base
 {
 
-    public function __construct(PDO $pdo, string $table = '', ?string $schema = 'glued')
+    public function __construct(PDO $pdo, string $table, ?string $schema = 'glued')
     {
         parent::__construct($pdo, $table, $schema);
     }

@@ -1,8 +1,9 @@
 <?php
 
 declare(strict_types=1);
-namespace Glued\Lib;
+namespace Glued\Lib\Classes\Bearer;
 
+use Glued\Lib\Sql;
 use PDO;
 use Phpfastcache\Helper\Psr16Adapter;
 use Monolog\Logger;
@@ -91,7 +92,7 @@ class PAT extends Bearer
 
         try {
             $db = new Sql($this->pdo, "core_pats");
-            $createdUuid = $db->create($doc, $upsert = false);
+            $createdUuid = $db->insert($doc);
             if ($createdUuid) {
                 $this->logger->info('auth.pat.create', ['status' => 'ok', 'patUuid' => $createdUuid]);
             }

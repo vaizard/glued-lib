@@ -1,7 +1,7 @@
 <?php
 
 declare(strict_types=1);
-namespace Glued\Lib;
+namespace Glued\Lib\Classes\Bearer;
 
 class Bearer
 {
