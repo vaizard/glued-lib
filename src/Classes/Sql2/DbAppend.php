@@ -69,15 +69,9 @@ final class DbAppend extends Base
     /** Latest version envelope by uuid. */
     public function latest(string $uuid): ?array
     {
-        $this->query = "SELECT {$this->selectEnvelope()} FROM {$this->schema}.{$this->table} WHERE {$this->uuidCol} = :u ORDER BY iat DESC LIMIT 1";
-        $this->params = [':u' => $uuid];
-        $this->stmt = $this->pdo->prepare($this->query);
-        $this->stmt->bindValue(':u', $uuid);
-        $this->stmt->execute();
-        $row = $this->stmt->fetchColumn();
-        $this->reset();
-        return $row ? json_decode($row, true) : null;
+        return $this->get($uuid);
     }
+
 
     /** Fetch a specific version envelope by version UUID. */
     public function byVersion(string $version): ?array

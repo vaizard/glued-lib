@@ -240,6 +240,79 @@ abstract class Base
         return $this;
     }
 
+    /**
+     * Build the SQL WHERE clause from $this->wheres and populate $this->params.
+     *
+     * Input shape ($this->wheres):
+     * [
+     *   [
+     *     'column'  => string,          // column or SQL expression
+     *     'op'      => string,          // '=', '>', '<', 'LIKE', 'IN', 'NOT IN', 'IS NULL', 'IS NOT NULL', ...
+     *     'value'   => mixed|null,      // scalar for scalar ops; array for IN/NOT IN; null for IS NULL ops
+     *     'logical' => 'AND'|'OR',      // chain operator (ignored for the first; first is coerced to AND)
+     *   ],
+     *   ...
+     * ]
+     *
+     * Rules:
+     * - Starts with 'WHERE TRUE' so every predicate can be added uniformly with a leading logical operator.
+     * - The first predicate is always joined using AND (prevents 'WHERE TRUE OR (...)' tautologies).
+     * - 'IS NULL' / 'IS NOT NULL' → no bound parameters.
+     * - 'IN' / 'NOT IN' with array:
+     *     • Expands to (:p{i}_0, :p{i}_1, ...) and binds each element.
+     *     • Empty array short-circuits (FALSE for IN, TRUE for NOT IN).
+     * - All other operators bind a single scalar to :p{i}.
+     *
+     * Side effects:
+     * - Fills $this->params with placeholders → values for PDO binding.
+     *
+     * @return string Leading ' WHERE TRUE ...' (even when there are zero predicates; PostgreSQL optimizes it away).
+     */
+
+    private function whereBuilder(): string
+    {
+        $sql = ' WHERE TRUE'; // Seed with a tautology to simplify joining logic.
+
+        foreach ($this->wheres as $i => $c) {
+            // 0) Prepare. First operator is forced to AND due to tautology above, subsequent operators as provided
+            $join = $i ? " {$c['logical']} " : ' AND ';
+            $col = $c['column'];
+            $op  = strtoupper(trim((string)$c['op']));
+            $val = $c['value'];
+
+            // 1) NULL checks require no bound value.
+            if ($op === 'IS NULL' || $op === 'IS NOT NULL') {
+                $sql .= $join . "($col $op)";
+                continue;
+            }
+
+            // 2) IN / NOT IN over arrays → expand and bind each element.
+            if (($op === 'IN' || $op === 'NOT IN') && is_array($val)) {
+
+                // Empty list: avoid invalid 'IN ()' by short-circuiting to a constant.
+                if ($val === []) {
+                    $sql .= $join . ($op === 'IN' ? '(FALSE)' : '(TRUE)');
+                    continue;
+                }
+                // Build placeholders :p{i}_k and bind each array element.
+                $phs = [];
+                foreach (array_values($val) as $k => $v) {
+                    $p = ":p{$i}_{$k}";
+                    $phs[] = $p;
+                    $this->params[$p] = $v; // register binding
+                }
+                $sql .= $join . "($col $op (" . implode(',', $phs) . "))";
+                continue;
+            }
+
+            // 3) Generic scalar operator: bind a single placeholder :p{i}.
+            $p = ":p{$i}";
+            $this->params[$p] = $val; // register binding
+            $sql .= $join . "($col $op $p)";
+        }
+        return $sql;
+    }
+
     /** Chain ORDER BY. */
     public function orderBy(string $expr): self { $this->orderBy = $expr; return $this; }
 
@@ -293,9 +366,14 @@ abstract class Base
      */
     public function get(string $uuid): ?array
     {
+        // Deterministic: newest by iat, then by version (in case of same iat)
+        $order = $this->orderBy ?? "iat DESC, {$this->versionCol} DESC";
         $this->query = "SELECT {$this->selectEnvelope()}
-                        FROM {$this->schema}.{$this->table}
-                        WHERE {$this->uuidCol} = :u";
+                    FROM {$this->schema}.{$this->table}
+                    WHERE {$this->uuidCol} = :u
+                    ORDER BY {$order}
+                    LIMIT 1";
+        $this->params = [':u' => $uuid];
         $this->stmt = $this->pdo->prepare($this->query);
         $this->stmt->bindValue(':u', $uuid);
         $this->stmt->execute();
@@ -304,32 +382,29 @@ abstract class Base
         return $row ? json_decode($row, true) : null;
     }
 
+
+
     /**
      * Fetch many with chainable predicates (merged envelopes).
      * Use ->orderBy('iat DESC')->first() to emulate "latest".
      */
     public function getAll(): array
     {
-        $this->query = "SELECT {$this->selectEnvelope()} FROM {$this->schema}.{$this->table} t";
         $this->params = [];
-        if ($this->wheres) {
-            $chunks = [];
-            foreach ($this->wheres as $i => $c) {
-                $p = ":p{$i}";
-                $chunks[] = ($i ? " {$c['logical']} " : '') . "({$c['column']} {$c['op']} {$p})";
-                $this->params[$p] = $c['value'];
-            }
-            $this->query .= ' WHERE ' . implode('', $chunks);
-        }
+        $this->query  = "SELECT {$this->selectEnvelope()} FROM {$this->schema}.{$this->table} t";
+        $this->query .= $this->whereBuilder();
         if ($this->orderBy) $this->query .= " ORDER BY {$this->orderBy}";
         if ($this->limit !== 'ALL') $this->query .= " LIMIT {$this->limit}";
 
+        // Prepare, bind, execute, decode each json into an array
         $this->stmt = $this->pdo->prepare($this->query);
-        foreach ($this->params as $k => $v) $this->stmt->bindValue($k, $v);
+        foreach ($this->params as $k => $v) { $this->stmt->bindValue($k, $v); }
         $this->stmt->execute();
         $this->reset();
         return $this->stmt->fetchAll(PDO::FETCH_FUNC, fn(string $json) => json_decode($json, true));
     }
+
+
 }
 
 

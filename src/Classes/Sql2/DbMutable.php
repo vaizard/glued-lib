@@ -57,35 +57,35 @@ final class DbMutable extends Base
         $metaJson = json_encode($m, $this->jsonFlags);
 
         $this->query = "
-    WITH up AS (
-      INSERT INTO {$this->schema}.{$this->table} AS t (doc, meta, sat, iat, uat)
-      VALUES (:doc::jsonb, :meta::jsonb, :sat, now(), now())
-      ON CONFLICT ({$this->uuidCol}) DO UPDATE
-        SET doc = EXCLUDED.doc,
-            meta = EXCLUDED.meta,
-            sat  = EXCLUDED.sat,
-            uat  = now()
-        -- idempotent: only update when something actually changed
-        WHERE (t.doc, t.meta, t.sat) IS DISTINCT FROM (EXCLUDED.doc, EXCLUDED.meta, EXCLUDED.sat)
-      RETURNING
-        t.{$this->uuidCol} AS uuid,
-        t.version,
-        t.iat,
-        encode(t.nonce, 'hex') AS nonce
-    )
-    -- prefer the row affected by INSERT/UPDATE; if no-op, fall back to the existing row
-    SELECT u.uuid, u.version, u.iat, u.nonce
-      FROM up u
-    UNION ALL
-    SELECT t.{$this->uuidCol} AS uuid,
-           t.version,
-           t.iat,
-           encode(t.nonce, 'hex') AS nonce
-      FROM {$this->schema}.{$this->table} t
-     WHERE t.{$this->uuidCol} = :uuid
-       AND NOT EXISTS (SELECT 1 FROM up)
-    LIMIT 1;
-    ";
+        WITH up AS (
+          INSERT INTO {$this->schema}.{$this->table} AS t (doc, meta, sat, iat, uat)
+          VALUES (:doc::jsonb, :meta::jsonb, :sat, now(), now())
+          ON CONFLICT ({$this->uuidCol}) DO UPDATE
+            SET doc = EXCLUDED.doc,
+                meta = EXCLUDED.meta,
+                sat  = EXCLUDED.sat,
+                uat  = now()
+            -- idempotent: only update when something actually changed
+            WHERE (t.doc, t.meta, t.sat) IS DISTINCT FROM (EXCLUDED.doc, EXCLUDED.meta, EXCLUDED.sat)
+          RETURNING
+            t.{$this->uuidCol} AS uuid,
+            t.version,
+            t.iat,
+            encode(t.nonce, 'hex') AS nonce
+        )
+        -- prefer the row affected by INSERT/UPDATE; if no-op, fall back to the existing row
+        SELECT u.uuid, u.version, u.iat, u.nonce
+          FROM up u
+        UNION ALL
+        SELECT t.{$this->uuidCol} AS uuid,
+               t.version,
+               t.iat,
+               encode(t.nonce, 'hex') AS nonce
+          FROM {$this->schema}.{$this->table} t
+         WHERE t.{$this->uuidCol} = :uuid
+           AND NOT EXISTS (SELECT 1 FROM up)
+        LIMIT 1;
+        ";
 
         $this->params = [
             ':doc'  => $docJson,
