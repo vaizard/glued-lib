@@ -196,7 +196,7 @@ abstract class Base
     protected int $jsonFlags = JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_IGNORE;
 
     /** @var array Builder state: array of WHERE conditions */
-    public array $wheres = [ ['column'=>'dat','op'=>'IS NOT NULL','value'=>null,'logical'=>'AND'] ];
+    public array $wheres = [ ['column'=>'dat','op'=>'IS NULL','value'=>null,'logical'=>'AND'] ];
 
     /** @var string|int Builder state: limit condition */
     public string|int $limit = 'ALL';
