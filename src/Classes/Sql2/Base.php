@@ -13,8 +13,8 @@ use Rs\Json\Merge\Patch as JsonMergePatch;
 -- MUTABLE (upsert by uuid)
 -- =========================
 
-DROP TABLE IF EXISTS glued.mutable_doc CASCADE;
-CREATE TABLE glued.mutable_doc (
+DROP TABLE IF EXISTS mutable_doc CASCADE;
+CREATE TABLE mutable_doc (
     uuid     uuid GENERATED ALWAYS AS ((doc->>'uuid')::uuid) STORED NOT NULL,
     version  uuid DEFAULT uuidv7() NOT NULL,      -- monotonic-ish ids for server-side audit chains
     doc      jsonb NOT NULL,
@@ -26,15 +26,15 @@ CREATE TABLE glued.mutable_doc (
     sat      text,                                -- raw source timestamp (as-is string)
     PRIMARY KEY (uuid)
 );
-CREATE INDEX mutable_doc_iat_desc ON glued.mutable_doc (iat DESC);
-CREATE INDEX mutable_doc_uat_desc ON glued.mutable_doc (uat DESC);
+CREATE INDEX mutable_doc_iat_desc ON mutable_doc (iat DESC);
+CREATE INDEX mutable_doc_uat_desc ON mutable_doc (uat DESC);
 
 -- =========================
 -- LOGGED (append only)
 -- =========================
 
-DROP TABLE IF EXISTS glued.logged_doc CASCADE;
-CREATE TABLE glued.logged_doc (
+DROP TABLE IF EXISTS logged_doc CASCADE;
+CREATE TABLE logged_doc (
     uuid     uuid NOT NULL,
     version  uuid DEFAULT uuidv7() NOT NULL,
     doc      jsonb NOT NULL,
@@ -50,69 +50,78 @@ CREATE TABLE glued.logged_doc (
     PRIMARY KEY (version)
 );
 
-CREATE INDEX        logged_doc_uuid_iat_desc ON glued.logged_doc (uuid, iat DESC);
+CREATE INDEX        logged_doc_uuid_iat_desc ON logged_doc (uuid, iat DESC);
 
 -- Optional temporal integrity if you *actively* manage meta.exp:
--- ALTER TABLE glued.logged_doc
+-- ALTER TABLE logged_doc
 --   ADD CONSTRAINT logged_doc_no_overlap UNIQUE (uuid, period WITHOUT OVERLAPS);  -- [PG18]
 
 -- Optional DB-level append-only (no UPDATE/DELETE)
-ALTER TABLE glued.logged_doc ENABLE ROW LEVEL SECURITY;
-REVOKE UPDATE, DELETE ON glued.logged_doc FROM PUBLIC;
-CREATE POLICY logged_insert_only ON glued.logged_doc FOR INSERT WITH CHECK (true);
+ALTER TABLE logged_doc ENABLE ROW LEVEL SECURITY;
+REVOKE UPDATE, DELETE ON logged_doc FROM PUBLIC;
+CREATE POLICY logged_insert_only ON logged_doc FOR INSERT WITH CHECK (true);
 
 
 -- =========================
--- INGEST (raw append log)
+-- EXTERNAL INGEST LOG (raw append log)
 -- =========================
-DROP TABLE IF EXISTS glued.ingest CASCADE;
-CREATE TABLE glued.ingest (
-  uuid     uuid DEFAULT gen_random_uuid() NOT NULL,
-  version  uuid GENERATED ALWAYS AS (uuid) STORED NOT NULL,  -- identical to uuid
+DROP TABLE IF EXISTS ingest CASCADE;
+CREATE TABLE ingest_log (
+  ext_id   text NOT NULL,
+  uuid     uuid DEFAULT gen_random_uuid() NOT NULL,  -- raw row id
+  version  uuid DEFAULT uuidv7() NOT NULL,           -- time-sortable tie-break
   doc      jsonb NOT NULL,
   meta     jsonb NOT NULL DEFAULT '{}'::jsonb,
   nonce    bytea GENERATED ALWAYS AS (decode(md5((doc::text)), 'hex')) STORED,
-  iat      timestamptz DEFAULT now() NOT NULL,
+  iat      bigint DEFAULT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint NOT NULL,
+  uat      bigint GENERATED ALWAYS AS ( iat ) VIRTUAL NOT NULL,
+  dat      bigint DEFAULT NULL,
   sat      text,
-  ext_id   text NOT NULL,
-
-  nbf      timestamptz GENERATED ALWAYS AS (CASE WHEN meta ? 'nbf' THEN (meta->>'nbf')::timestamptz END) VIRTUAL,
-  exp      timestamptz GENERATED ALWAYS AS (CASE WHEN meta ? 'exp' THEN (meta->>'exp')::timestamptz END) VIRTUAL,
-  period   tstzrange  GENERATED ALWAYS AS (tstzrange(COALESCE(nbf, iat), COALESCE(exp, 'infinity'::timestamptz), '[)')) VIRTUAL,
-
-  PRIMARY KEY (nonce, iat)
+  period int8range GENERATED ALWAYS AS ( int8range(
+              COALESCE((meta->>'nbf')::bigint, iat),
+              COALESCE(LEAST(dat, (meta->>'exp')::bigint), dat, (meta->>'exp')::bigint),
+              '[)'
+         ) ) VIRTUAL,
+  PRIMARY KEY (uuid)
 );
-CREATE INDEX ingest_ext_iat_desc ON glued.ingest (ext_id, iat DESC);
 
+CREATE INDEX ingest_log_ext_iat_ver_desc ON ingest_log (ext_id, iat DESC, version DESC);
+CREATE INDEX ingest_log_nonce_iat        ON ingest_log (nonce, iat);
 
 
 -- ====================================================
-   EXTERNAL INGEST (stable v5 uuid per ext_id + vers)
+   VERSIONED EXTERNAL INGEST (stable v5 uuid per ext_id + vers)
 -- ====================================================
-DROP TABLE IF EXISTS glued.external_ingest_log CASCADE;
-CREATE TABLE glued.external_ingest_log (
+DROP TABLE IF EXISTS ingest_changelog CASCADE;
+CREATE TABLE ingest_log (
   ext_id   text NOT NULL,
-  uuid     uuid NOT NULL,                      -- stable v5 from (table/source, ext_id) – set in app
-  version  uuid DEFAULT uuidv7() NOT NULL,     -- per-version id [PG18]
+  uuid     uuid NOT NULL,                           -- v5 (table/source, ext_id) from app
+  version  uuid DEFAULT uuidv7() NOT NULL,          -- per-version id
   doc      jsonb NOT NULL,
   meta     jsonb NOT NULL DEFAULT '{}'::jsonb,
   nonce    bytea GENERATED ALWAYS AS (decode(md5((doc::text)), 'hex')) STORED,
-
-  iat      timestamptz DEFAULT now() NOT NULL,
-  sat      text,
-
-  nbf      timestamptz GENERATED ALWAYS AS (CASE WHEN meta ? 'nbf' THEN (meta->>'nbf')::timestamptz END) VIRTUAL,
-  exp      timestamptz GENERATED ALWAYS AS (CASE WHEN meta ? 'exp' THEN (meta->>'exp')::timestamptz END) VIRTUAL,
-  period   tstzrange  GENERATED ALWAYS AS (tstzrange(COALESCE(nbf, iat), COALESCE(exp, 'infinity'::timestamptz), '[)')) VIRTUAL,
-
+  iat      bigint DEFAULT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint NOT NULL, -- unix time (milliseconds)
+  uat      bigint DEFAULT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint NOT NULL, -- unix time (milliseconds)
+  dat      bigint, -- unix time (milliseconds)
+  sat      text, -- raw source at time
+  period int8range GENERATED ALWAYS AS ( int8range(
+              COALESCE((meta->>'nbf')::bigint, iat),
+              COALESCE(LEAST(dat, (meta->>'exp')::bigint), dat, (meta->>'exp')::bigint),
+              '[)'
+         ) ) VIRTUAL,
   PRIMARY KEY (uuid, version)
 );
-CREATE UNIQUE INDEX eil_uuid_nonce  ON glued.external_ingest_log (uuid, nonce);
-CREATE INDEX        eil_ext_iat_desc ON glued.external_ingest_log (ext_id, iat DESC);
 
--- Optional temporal integrity if you set exp:
--- ALTER TABLE glued.external_ingest_log
---   ADD CONSTRAINT eil_no_overlap UNIQUE (uuid, period WITHOUT OVERLAPS);  -- [PG18]
+-- Same-content dedupe per stream
+CREATE UNIQUE INDEX icl_uuid_nonce ON ingest_changelog (uuid, nonce);
+
+-- Ordering indexes
+CREATE INDEX icl_ext_uat_ver_desc ON ingest_changelog (ext_id, uat DESC, version DESC);
+
+-- Temporal integrity constraint
+ALTER TABLE ingest_changelog ADD CONSTRAINT icl_no_overlap UNIQUE (uuid, period WITHOUT OVERLAPS);
+
+
 
 */
 
