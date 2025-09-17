@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -e
 
 DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 source "$DIR/loadenv.sh"
@@ -22,4 +23,4 @@ for dbtype in Mysql Pgsql; do
 done
 
 echo "[DONE] $(basename $0) -----------------"
-
+set +e
