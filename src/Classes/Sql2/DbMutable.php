@@ -77,7 +77,7 @@ final class DbMutable extends Base
         encode(t.nonce, 'hex') AS nonce
     )
     -- prefer the row affected by INSERT/UPDATE; if no-op, fall back to the existing row
-    SELECT u.uuid, u.version, u.iat, u.nonce FROM up
+    SELECT uuid, version, iat, nonce FROM up
     UNION ALL
     SELECT t.{$this->uuidCol} AS uuid,
            t.version,
