@@ -57,45 +57,39 @@ final class DbMutable extends Base
         $metaJson = json_encode($m, $this->jsonFlags);
 
         $this->query = "
-        WITH up AS (
-          INSERT INTO {$this->schema}.{$this->table} AS t (doc, meta, sat, iat, uat)
-          VALUES (:doc::jsonb, :meta::jsonb, :sat,
-                  (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
-                  (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint)
-          ON CONFLICT ({$this->uuidCol}) DO UPDATE
-            SET doc = EXCLUDED.doc,
-                meta = EXCLUDED.meta,
-                sat  = EXCLUDED.sat,
-                uat  = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint
+    WITH up AS (
+      INSERT INTO {$this->schema}.{$this->table} AS t (doc, meta, sat, iat, uat)
+      VALUES (:doc::jsonb, :meta::jsonb, :sat,
+              (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
+              (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint)
+      ON CONFLICT ({$this->uuidCol}) DO UPDATE
+        SET doc = EXCLUDED.doc,
+            meta = EXCLUDED.meta,
+            sat  = EXCLUDED.sat,
+            uat  = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
+            version = uuidv7() -- << bump on real update
             -- idempotent: only update when something actually changed
-            WHERE (t.doc, t.meta, t.sat) IS DISTINCT FROM (EXCLUDED.doc, EXCLUDED.meta, EXCLUDED.sat)
-          RETURNING
-            t.{$this->uuidCol} AS uuid,
-            t.version,
-            t.iat,
-            encode(t.nonce, 'hex') AS nonce
-        )
-        -- prefer the row affected by INSERT/UPDATE; if no-op, fall back to the existing row
-        SELECT u.uuid, u.version, u.iat, u.nonce
-          FROM up u
-        UNION ALL
-        SELECT t.{$this->uuidCol} AS uuid,
-               t.version,
-               t.iat,
-               encode(t.nonce, 'hex') AS nonce
-          FROM {$this->schema}.{$this->table} t
-         WHERE t.{$this->uuidCol} = :uuid
-           AND NOT EXISTS (SELECT 1 FROM up)
-        LIMIT 1;
-        ";
+      WHERE (t.doc, t.meta, t.sat) IS DISTINCT FROM (EXCLUDED.doc, EXCLUDED.meta, EXCLUDED.sat)
+      RETURNING
+        t.{$this->uuidCol} AS uuid,
+        t.version,
+        t.iat,
+        encode(t.nonce, 'hex') AS nonce
+    )
+    -- prefer the row affected by INSERT/UPDATE; if no-op, fall back to the existing row
+    SELECT u.uuid, u.version, u.iat, u.nonce FROM up
+    UNION ALL
+    SELECT t.{$this->uuidCol} AS uuid,
+           t.version,
+           t.iat,
+           encode(t.nonce, 'hex') AS nonce
+      FROM {$this->schema}.{$this->table} t
+     WHERE t.{$this->uuidCol} = :uuid
+       AND NOT EXISTS (SELECT 1 FROM up)
+    LIMIT 1;
+    ";
 
-        $this->params = [
-            ':doc'  => $docJson,
-            ':meta' => $metaJson,
-            ':sat'  => $sat,
-            ':uuid' => $uuid,
-        ];
-
+        $this->params = [ ':doc'=>$docJson, ':meta'=>$metaJson, ':sat'=>$sat, ':uuid'=>$uuid ];
         $this->stmt = $this->pdo->prepare($this->query);
         foreach ($this->params as $k => $v) { $this->stmt->bindValue($k, $v); }
         $this->stmt->execute();
@@ -103,7 +97,6 @@ final class DbMutable extends Base
         /** @var array{uuid:string,version:string,iat:string,nonce:string} $row */
         $row = (array)$this->stmt->fetch(PDO::FETCH_ASSOC);
         $this->reset();
-        // Fallback safety if SELECT returns nothing for some reason
         return $row ?: ['uuid'=>$uuid, 'version'=>'', 'iat'=>'', 'nonce'=>''];
     }
 
@@ -119,28 +112,26 @@ final class DbMutable extends Base
         $metaJson = json_encode($m, $this->jsonFlags);
 
         $this->query = "
-        WITH up AS (
-          INSERT INTO {$this->schema}.{$this->table} (doc, meta, sat, iat, uat)
-          VALUES (:doc::jsonb, :meta::jsonb, :sat,
-                  (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
-                  (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint)
-          ON CONFLICT ({$this->uuidCol}) DO UPDATE
-            SET doc = EXCLUDED.doc,
-                meta = EXCLUDED.meta,
-                sat  = EXCLUDED.sat,
-                uat  = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint
-          RETURNING uuid, doc, meta, sat
-        )
-        INSERT INTO {$this->schema}.{$this->logTable} (uuid, doc, meta, iat, sat)
-        SELECT uuid, doc, meta, (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint, sat FROM up
-        ON CONFLICT (uuid, nonce) DO NOTHING
-        RETURNING uuid
-        ";
-        $this->params = [
-            ':doc'  => $docJson,
-            ':meta' => $metaJson,
-            ':sat'  => $sat,
-        ];
+    WITH up AS (
+      INSERT INTO {$this->schema}.{$this->table} (doc, meta, sat, iat, uat)
+      VALUES (:doc::jsonb, :meta::jsonb, :sat,
+              (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
+              (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint)
+      ON CONFLICT ({$this->uuidCol}) DO UPDATE
+        SET doc = EXCLUDED.doc,
+            meta = EXCLUDED.meta,
+            sat  = EXCLUDED.sat,
+            uat  = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
+            version = uuidv7()                               -- << bump on real update
+      RETURNING uuid, doc, meta, sat
+    )
+    INSERT INTO {$this->schema}.{$this->logTable} (uuid, doc, meta, iat, sat)
+    SELECT uuid, doc, meta, (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint, sat FROM up
+    ON CONFLICT (uuid, nonce) DO NOTHING
+    RETURNING uuid
+    ";
+
+        $this->params = [ ':doc'=>$docJson, ':meta'=>$metaJson, ':sat'=>$sat ];
         $this->stmt = $this->pdo->prepare($this->query);
         foreach ($this->params as $k => $v) $this->stmt->bindValue($k, $v);
         $this->stmt->execute();
