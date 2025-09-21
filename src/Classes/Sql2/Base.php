@@ -13,21 +13,28 @@ use Rs\Json\Merge\Patch as JsonMergePatch;
 -- MUTABLE (upsert by uuid)
 -- =========================
 
-DROP TABLE IF EXISTS mutable_doc CASCADE;
-CREATE TABLE mutable_doc (
-    uuid     uuid GENERATED ALWAYS AS ((doc->>'uuid')::uuid) STORED NOT NULL,
-    version  uuid DEFAULT uuidv7() NOT NULL,      -- monotonic-ish ids for server-side audit chains
-    doc      jsonb NOT NULL,
-    meta     jsonb NOT NULL DEFAULT '{}'::jsonb,
-    nonce    bytea GENERATED ALWAYS AS (decode(md5((doc - 'uuid')::text), 'hex')) STORED,
-    iat      timestamptz DEFAULT now() NOT NULL,  -- inserted/issued at
-    uat      timestamptz DEFAULT now() NOT NULL,  -- updated at (set in UPDATE)
-    dat      timestamptz,                         -- deleted at (soft-delete)
-    sat      text,                                -- raw source timestamp (as-is string)
-    PRIMARY KEY (uuid)
+DROP TABLE IF EXISTS glued.mutable_doc CASCADE;
+CREATE TABLE glued.mutable_doc (
+  uuid     uuid  GENERATED ALWAYS AS ((doc->>'uuid')::uuid) STORED NOT NULL,
+  version  uuid  DEFAULT uuidv7() NOT NULL,
+  doc      jsonb NOT NULL,
+  meta     jsonb NOT NULL DEFAULT '{}'::jsonb,
+  nonce    bytea GENERATED ALWAYS AS (decode(md5((doc - 'uuid')::text), 'hex')) STORED,
+  iat      bigint DEFAULT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint NOT NULL, -- inserted/issued at
+  uat      bigint DEFAULT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint NOT NULL, -- updated at (set in UPDATE)
+  dat      bigint,                                                                         -- deleted at (soft-delete)
+  sat      text,                                                                           -- raw source timestamp (as-is string)
+  PRIMARY KEY (uuid)
 );
-CREATE INDEX mutable_doc_iat_desc ON mutable_doc (iat DESC);
-CREATE INDEX mutable_doc_uat_desc ON mutable_doc (uat DESC);
+
+-- Idempotency: one active row per content (allows tombstoned duplicates)
+CREATE UNIQUE INDEX IF NOT EXISTS mutable_doc_nonce_uq_active
+  ON glued.mutable_doc (nonce)
+  WHERE dat IS NULL;
+
+CREATE INDEX IF NOT EXISTS mutable_doc_iat_desc ON glued.mutable_doc (iat DESC);
+CREATE INDEX IF NOT EXISTS mutable_doc_uat_desc ON glued.mutable_doc (uat DESC);
+
 
 -- =========================
 -- LOGGED (append only)
@@ -366,6 +373,7 @@ abstract class Base
             'iat', iat,
             'uat', uat,
             'sat', sat,
+            'version', version,
             'nonce', encode(nonce, 'hex')
         )";
     }

@@ -59,12 +59,14 @@ final class DbMutable extends Base
         $this->query = "
         WITH up AS (
           INSERT INTO {$this->schema}.{$this->table} AS t (doc, meta, sat, iat, uat)
-          VALUES (:doc::jsonb, :meta::jsonb, :sat, now(), now())
+          VALUES (:doc::jsonb, :meta::jsonb, :sat,
+                  (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
+                  (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint)
           ON CONFLICT ({$this->uuidCol}) DO UPDATE
             SET doc = EXCLUDED.doc,
                 meta = EXCLUDED.meta,
                 sat  = EXCLUDED.sat,
-                uat  = now()
+                uat  = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint
             -- idempotent: only update when something actually changed
             WHERE (t.doc, t.meta, t.sat) IS DISTINCT FROM (EXCLUDED.doc, EXCLUDED.meta, EXCLUDED.sat)
           RETURNING
@@ -119,16 +121,18 @@ final class DbMutable extends Base
         $this->query = "
         WITH up AS (
           INSERT INTO {$this->schema}.{$this->table} (doc, meta, sat, iat, uat)
-          VALUES (:doc::jsonb, :meta::jsonb, :sat, now(), now())
+          VALUES (:doc::jsonb, :meta::jsonb, :sat,
+                  (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
+                  (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint)
           ON CONFLICT ({$this->uuidCol}) DO UPDATE
             SET doc = EXCLUDED.doc,
                 meta = EXCLUDED.meta,
                 sat  = EXCLUDED.sat,
-                uat  = now()
+                uat  = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint
           RETURNING uuid, doc, meta, sat
         )
         INSERT INTO {$this->schema}.{$this->logTable} (uuid, doc, meta, iat, sat)
-        SELECT uuid, doc, meta, now(), sat FROM up
+        SELECT uuid, doc, meta, (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint, sat FROM up
         ON CONFLICT (uuid, nonce) DO NOTHING
         RETURNING uuid
         ";
@@ -187,7 +191,7 @@ final class DbMutable extends Base
         $this->query = "
         UPDATE {$this->schema}.{$this->table}
            SET doc = :doc::jsonb,
-               uat = now(),
+               uat = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
                sat = COALESCE(:sat, sat)
          WHERE {$this->uuidCol} = :uuid
         ";
@@ -221,7 +225,7 @@ final class DbMutable extends Base
         $this->query = "
         UPDATE {$this->schema}.{$this->table}
            SET meta = :meta::jsonb,
-               uat  = now(),
+               uat  = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
                sat  = COALESCE(:sat, sat)
          WHERE {$this->uuidCol} = :uuid
         ";
@@ -252,8 +256,8 @@ final class DbMutable extends Base
         $this->query = "
         UPDATE {$this->schema}.{$this->table}
            SET doc  = {$docExpr},
-               dat  = now(),
-               uat  = now(),
+               dat  = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
+               uat  = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
                sat  = COALESCE(:sat, sat),
                meta = COALESCE(:meta::jsonb, meta)
          WHERE {$this->uuidCol} = :uuid
@@ -280,15 +284,15 @@ final class DbMutable extends Base
         WITH upd AS (
           UPDATE {$this->schema}.{$this->table}
              SET doc = {$this->docCol} || jsonb_build_object('_deleted', true),
-                 dat = now(),
-                 uat = now(),
+                 dat = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
+                 uat = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
                  sat = COALESCE(:sat, sat),
                  meta = COALESCE(:meta::jsonb, meta)
            WHERE {$this->uuidCol} = :uuid
           RETURNING uuid, doc, meta, sat, dat
         )
         INSERT INTO {$this->schema}.{$this->logTable} (uuid, doc, meta, iat, sat, dat)
-        SELECT uuid, doc, meta, now(), sat, dat FROM upd
+        SELECT uuid, doc, meta, (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint, sat, dat FROM upd
         ON CONFLICT (uuid, nonce) DO NOTHING
         ";
         $this->params = [
@@ -331,17 +335,20 @@ final class DbMutable extends Base
      */
     public function getAsOf(string $uuid, \DateTimeInterface $asOf): ?array
     {
+        // convert to ms since epoch (bigint) to match int8range(period)
+        $asOfMs = ((int)$asOf->format('U')) * 1000 + (int)$asOf->format('v');
+
         $this->query = "
         SELECT {$this->docCol} || jsonb_build_object(
                  'meta', meta, 'iat', iat, 'dat', dat, 'sat', sat
                )
           FROM {$this->schema}.logged_doc
          WHERE uuid = :u
-           AND period @> :asof::timestamptz
+           AND period @> :asof::bigint
          ORDER BY iat DESC
          LIMIT 1
         ";
-        $this->params = [':u' => $uuid, ':asof' => $asOf->format('c')];
+        $this->params = [':u' => $uuid, ':asof' => $asOfMs];
         $this->stmt = $this->pdo->prepare($this->query);
         foreach ($this->params as $k => $v) $this->stmt->bindValue($k, $v);
         $this->stmt->execute();
