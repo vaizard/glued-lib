@@ -29,6 +29,24 @@ final class DbMutable extends Base
         $this->logTable = $logTable;
     }
 
+    /** True if a log table is configured. */
+    public function hasLog(): bool
+    {
+        return !empty($this->logTable);
+    }
+
+    /** @return non-empty-string */
+    private function requireLogTable(): string
+    {
+        if (!$this->logTable) {
+            throw new \LogicException(
+                static::class . ' requires a configured $logTable for this operation. ' .
+                'Use upsert()/softDeleteNoLog(), or construct with a log table.'
+            );
+        }
+        return $this->logTable;
+    }
+
     /**
      * Upsert mutable row (NO LOG).
      *
@@ -125,7 +143,7 @@ final class DbMutable extends Base
             version = uuidv7()                               -- << bump on real update
       RETURNING uuid, doc, meta, sat
     )
-    INSERT INTO {$this->schema}.{$this->logTable} (uuid, doc, meta, iat, sat)
+    INSERT INTO {$this->schema}.{$this->requireLogTable()} (uuid, doc, meta, iat, sat)
     SELECT uuid, doc, meta, (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint, sat FROM up
     ON CONFLICT (uuid, nonce) DO NOTHING
     RETURNING uuid
@@ -282,7 +300,7 @@ final class DbMutable extends Base
            WHERE {$this->uuidCol} = :uuid
           RETURNING uuid, doc, meta, sat, dat
         )
-        INSERT INTO {$this->schema}.{$this->logTable} (uuid, doc, meta, iat, sat, dat)
+        INSERT INTO {$this->schema}.{$this->requireLogTable()} (uuid, doc, meta, iat, sat, dat)
         SELECT uuid, doc, meta, (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint, sat, dat FROM upd
         ON CONFLICT (uuid, nonce) DO NOTHING
         ";
