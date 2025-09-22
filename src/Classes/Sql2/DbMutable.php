@@ -406,30 +406,34 @@ final class DbMutable extends Base
     }
 
     /**
-     * Bitemporal read (from $this->requireLogTable()).
+     * Bitemporal read (from log table) returning the same envelope as get().
      */
     public function getAsOf(string $uuid, \DateTimeInterface $asOf): ?array
     {
-        // convert to ms since epoch (bigint) to match int8range(period)
+        // ms since epoch (bigint) to match int8range(period)
         $asOfMs = ((int)$asOf->format('U')) * 1000 + (int)$asOf->format('v');
+        $logTable = $this->requireLogTable();
+
+        $order = "iat DESC, {$this->versionCol} DESC";
 
         $this->query = "
-        SELECT {$this->docCol} || jsonb_build_object(
-                 'meta', meta, 'iat', iat, 'dat', dat, 'sat', sat
-               )
-          FROM {$this->schema}.{$this->requireLogTable()}
-         WHERE uuid = :u
+        SELECT {$this->selectEnvelope()}
+          FROM {$this->schema}.{$logTable}
+         WHERE {$this->uuidCol} = :u
            AND period @> :asof::bigint
-         ORDER BY iat DESC
+         ORDER BY {$order}
          LIMIT 1
-        ";
-        $this->params = [':u' => $uuid, ':asof' => $asOfMs];
+    ";
+        $this->params = [ ':u' => $uuid, ':asof' => $asOfMs ];
         $this->stmt = $this->pdo->prepare($this->query);
         foreach ($this->params as $k => $v) $this->stmt->bindValue($k, $v);
         $this->stmt->execute();
         $row = $this->stmt->fetchColumn();
         $this->reset();
+
         return $row ? json_decode($row, true) : null;
     }
+
+
 
 }
