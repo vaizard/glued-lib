@@ -18,9 +18,11 @@ use \PDO;
  * - uat            bigint   -- VIRTUAL: same as iat
  * - sat            text     -- raw source timestamp (free text)
  * - ext_id         text     -- upstream id (required)
- * - period         int8range VIRTUAL int8range(COALESCE(meta->>'nbf', iat), meta->>'exp', '[)')
- *   (both nbf/exp read as BIGINT if present in meta)
- *
+ * - period         int8range(
+ * *     COALESCE(meta->>'nbf'::bigint, iat),
+ * *     GREATEST(COALESCE(LEAST(dat, exp), dat, exp), COALESCE(nbf, iat)),
+ * *     '[)'
+ * *   )
  * Indexes:
  * - (ext_id, iat DESC, version DESC)
  * - (nonce, iat)
@@ -84,6 +86,7 @@ final class IngestAppend extends Base
      */
     public function log(array|object $doc, string $extId, array|object $meta = [], ?string $sat = null): array
     {
+
         [$d, $m]  = $this->normalize($doc, $meta);
         $docJson  = json_encode($d, $this->jsonFlags);
         $metaJson = json_encode($m, $this->jsonFlags);
@@ -93,8 +96,8 @@ final class IngestAppend extends Base
             INSERT INTO {$this->schema}.{$this->table} (doc, meta, ext_id, sat)
             VALUES (:doc::jsonb, :meta::jsonb, :ext, :sat)
             RETURNING
-                {$this->uuidCol}     AS uuid,
-                {$this->versionCol}  AS version,
+                {$this->uuidCol}    AS uuid,
+                {$this->versionCol} AS version,
                 iat,
                 encode(nonce, 'hex') AS nonce
         ";
@@ -109,7 +112,7 @@ final class IngestAppend extends Base
         foreach ($this->params as $k => $v) { $this->stmt->bindValue($k, $v); }
         $this->stmt->execute();
 
-        /** @var array{uuid:string,version:string,iat:string,nonce:string} $row */
+        /** @var array{uuid:string,version:string,iat:string,nonce:string} */
         $row = (array)$this->stmt->fetch(PDO::FETCH_ASSOC);
         $this->reset();
         return $row;
