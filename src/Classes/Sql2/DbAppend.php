@@ -29,7 +29,7 @@ final class DbAppend extends Base
      */
     public function append(array|object $doc, array|object $meta = [], ?string $sat = null): string
     {
-        $uuid = (string)($doc['uuid'] ?? Uuid::uuid4());
+        $uuid = (string) ((is_array($doc) ? ($doc['uuid'] ?? null) : ($doc->uuid ?? null)) ?? Uuid::uuid4());
         [$d, $m] = $this->normalize($doc, $meta, $uuid);
         $docJson  = json_encode($d, $this->jsonFlags);
         $metaJson = json_encode($m, $this->jsonFlags);
