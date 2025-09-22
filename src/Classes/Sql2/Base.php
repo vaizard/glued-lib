@@ -15,16 +15,16 @@ use Rs\Json\Merge\Patch as JsonMergePatch;
 
 DROP TABLE IF EXISTS glued.mutable_doc CASCADE;
 CREATE TABLE glued.mutable_doc (
-  uuid     uuid  GENERATED ALWAYS AS ((doc->>'uuid')::uuid) STORED NOT NULL,
-  version  uuid  DEFAULT uuidv7() NOT NULL,
-  doc      jsonb NOT NULL,
-  meta     jsonb NOT NULL DEFAULT '{}'::jsonb,
-  nonce    bytea GENERATED ALWAYS AS (decode(md5((doc - 'uuid')::text), 'hex')) STORED,
-  iat      bigint DEFAULT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint NOT NULL, -- inserted/issued at
-  uat      bigint DEFAULT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint NOT NULL, -- updated at (set in UPDATE)
-  dat      bigint,                                                                         -- deleted at (soft-delete)
-  sat      text,                                                                           -- raw source timestamp (as-is string)
-  PRIMARY KEY (uuid)
+                                   uuid     uuid  GENERATED ALWAYS AS ((doc->>'uuid')::uuid) STORED NOT NULL,
+                                   version  uuid  DEFAULT uuidv7() NOT NULL,
+                                   doc      jsonb NOT NULL,
+                                   meta     jsonb NOT NULL DEFAULT '{}'::jsonb,
+                                   nonce    bytea GENERATED ALWAYS AS (decode(md5((doc - 'uuid')::text), 'hex')) STORED,
+                                   iat      bigint DEFAULT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint NOT NULL, -- inserted/issued at
+                                   uat      bigint DEFAULT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint NOT NULL, -- updated at (set in UPDATE)
+                                   dat      bigint,                                                                         -- deleted at (soft-delete)
+                                   sat      text,                                                                           -- raw source timestamp (as-is string)
+                                   PRIMARY KEY (uuid)
 );
 
 -- Idempotency: one active row per content (allows tombstoned duplicates)
@@ -38,21 +38,21 @@ CREATE INDEX IF NOT EXISTS mutable_doc_uat_desc ON glued.mutable_doc (uat DESC);
 
 DROP TABLE IF EXISTS glued.logged_doc CASCADE;
 CREATE TABLE glued.logged_doc (
-  uuid     uuid  NOT NULL,
-  version  uuid  DEFAULT uuidv7() NOT NULL,
-  doc      jsonb NOT NULL,
-  meta     jsonb NOT NULL DEFAULT '{}'::jsonb,
-  nonce    bytea GENERATED ALWAYS AS (decode(md5((doc - 'uuid')::text), 'hex')) STORED,
-  iat      bigint DEFAULT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint NOT NULL, -- append time (ms)
-  uat      bigint GENERATED ALWAYS AS (iat) VIRTUAL NOT NULL,
-  dat      bigint,
-  sat      text,
-  period int8range GENERATED ALWAYS AS ( int8range(
-              COALESCE((meta->>'nbf')::bigint, iat),
-              COALESCE(LEAST(dat, (meta->>'exp')::bigint), dat, (meta->>'exp')::bigint),
-              '[)'
-         ) ) VIRTUAL,
-  PRIMARY KEY (version)
+                                  uuid     uuid  NOT NULL,
+                                  version  uuid  DEFAULT uuidv7() NOT NULL,
+                                  doc      jsonb NOT NULL,
+                                  meta     jsonb NOT NULL DEFAULT '{}'::jsonb,
+                                  nonce    bytea GENERATED ALWAYS AS (decode(md5((doc - 'uuid')::text), 'hex')) STORED,
+                                  iat      bigint DEFAULT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint NOT NULL, -- append time (ms)
+                                  uat      bigint GENERATED ALWAYS AS (iat) VIRTUAL NOT NULL,
+                                  dat      bigint,
+                                  sat      text,
+                                  period int8range GENERATED ALWAYS AS ( int8range(
+                                          COALESCE((meta->>'nbf')::bigint, iat),
+                                          COALESCE(LEAST(dat, (meta->>'exp')::bigint), dat, (meta->>'exp')::bigint),
+                                          '[)'
+                                                                         ) ) VIRTUAL,
+                                  PRIMARY KEY (version)
 );
 
 CREATE INDEX IF NOT EXISTS logged_doc_uuid_iat_desc ON glued.logged_doc (uuid, iat DESC);
@@ -61,24 +61,24 @@ CREATE INDEX IF NOT EXISTS logged_doc_uuid_iat_desc ON glued.logged_doc (uuid, i
 -- =========================
 -- EXTERNAL INGEST LOG (raw append log)
 -- =========================
-DROP TABLE IF EXISTS ingest CASCADE;
+DROP TABLE IF EXISTS ingest_log CASCADE;
 CREATE TABLE ingest_log (
-  ext_id   text NOT NULL,
-  uuid     uuid DEFAULT gen_random_uuid() NOT NULL,  -- raw row id
-  version  uuid DEFAULT uuidv7() NOT NULL,           -- time-sortable tie-break
-  doc      jsonb NOT NULL,
-  meta     jsonb NOT NULL DEFAULT '{}'::jsonb,
-  nonce    bytea GENERATED ALWAYS AS (decode(md5((doc::text)), 'hex')) STORED,
-  iat      bigint DEFAULT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint NOT NULL,
-  uat      bigint GENERATED ALWAYS AS ( iat ) VIRTUAL NOT NULL,
-  dat      bigint DEFAULT NULL,
-  sat      text,
-  period int8range GENERATED ALWAYS AS ( int8range(
-              COALESCE((meta->>'nbf')::bigint, iat),
-              COALESCE(LEAST(dat, (meta->>'exp')::bigint), dat, (meta->>'exp')::bigint),
-              '[)'
-         ) ) VIRTUAL,
-  PRIMARY KEY (uuid)
+                            ext_id   text NOT NULL,
+                            uuid     uuid DEFAULT gen_random_uuid() NOT NULL,  -- raw row id
+                            version  uuid DEFAULT uuidv7() NOT NULL,           -- time-sortable tie-break
+                            doc      jsonb NOT NULL,
+                            meta     jsonb NOT NULL DEFAULT '{}'::jsonb,
+                            nonce    bytea GENERATED ALWAYS AS (decode(md5((doc::text)), 'hex')) STORED,
+                            iat      bigint DEFAULT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint NOT NULL,
+                            uat      bigint GENERATED ALWAYS AS ( iat ) VIRTUAL NOT NULL,
+                            dat      bigint DEFAULT NULL,
+                            sat      text,
+                            period int8range GENERATED ALWAYS AS ( int8range(
+                                    COALESCE((meta->>'nbf')::bigint, iat),
+                                    COALESCE(LEAST(dat, (meta->>'exp')::bigint), dat, (meta->>'exp')::bigint),
+                                    '[)'
+                                                                   ) ) VIRTUAL,
+                            PRIMARY KEY (uuid)
 );
 
 CREATE INDEX ingest_log_ext_iat_ver_desc ON ingest_log (ext_id, iat DESC, version DESC);
@@ -86,26 +86,26 @@ CREATE INDEX ingest_log_nonce_iat        ON ingest_log (nonce, iat);
 
 
 -- ====================================================
-   VERSIONED EXTERNAL INGEST (stable v5 uuid per ext_id + vers)
+VERSIONED EXTERNAL INGEST (stable v5 uuid per ext_id + vers)
 -- ====================================================
 DROP TABLE IF EXISTS ingest_changelog CASCADE;
-CREATE TABLE ingest_log (
-  ext_id   text NOT NULL,
-  uuid     uuid NOT NULL,                           -- v5 (table/source, ext_id) from app
-  version  uuid DEFAULT uuidv7() NOT NULL,          -- per-version id
-  doc      jsonb NOT NULL,
-  meta     jsonb NOT NULL DEFAULT '{}'::jsonb,
-  nonce    bytea GENERATED ALWAYS AS (decode(md5((doc::text)), 'hex')) STORED,
-  iat      bigint DEFAULT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint NOT NULL, -- unix time (milliseconds)
-  uat      bigint DEFAULT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint NOT NULL, -- unix time (milliseconds)
-  dat      bigint, -- unix time (milliseconds)
-  sat      text, -- raw source at time
-  period int8range GENERATED ALWAYS AS ( int8range(
-              COALESCE((meta->>'nbf')::bigint, iat),
-              COALESCE(LEAST(dat, (meta->>'exp')::bigint), dat, (meta->>'exp')::bigint),
-              '[)'
-         ) ) VIRTUAL,
-  PRIMARY KEY (uuid, version)
+CREATE TABLE ingest_changelog (
+                            ext_id   text NOT NULL,
+                            uuid     uuid NOT NULL,                           -- v5 (table/source, ext_id) from app
+                            version  uuid DEFAULT uuidv7() NOT NULL,          -- per-version id
+                            doc      jsonb NOT NULL,
+                            meta     jsonb NOT NULL DEFAULT '{}'::jsonb,
+                            nonce    bytea GENERATED ALWAYS AS (decode(md5((doc::text)), 'hex')) STORED,
+                            iat      bigint DEFAULT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint NOT NULL, -- unix time (milliseconds)
+                            uat      bigint DEFAULT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint NOT NULL, -- unix time (milliseconds)
+                            dat      bigint, -- unix time (milliseconds)
+                            sat      text, -- raw source at time
+                            period int8range GENERATED ALWAYS AS ( int8range(
+                                    COALESCE((meta->>'nbf')::bigint, iat),
+                                    COALESCE(LEAST(dat, (meta->>'exp')::bigint), dat, (meta->>'exp')::bigint),
+                                    '[)'
+                                                                   ) ) VIRTUAL,
+                            PRIMARY KEY (uuid, version)
 );
 
 -- Same-content dedupe per stream
@@ -114,8 +114,6 @@ CREATE UNIQUE INDEX icl_uuid_nonce ON ingest_changelog (uuid, nonce);
 -- Ordering indexes
 CREATE INDEX icl_ext_uat_ver_desc ON ingest_changelog (ext_id, uat DESC, version DESC);
 
--- Temporal integrity constraint
-ALTER TABLE ingest_changelog ADD CONSTRAINT icl_no_overlap UNIQUE (uuid, period WITHOUT OVERLAPS);
 
 */
 
