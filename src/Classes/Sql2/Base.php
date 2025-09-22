@@ -28,7 +28,6 @@ CREATE TABLE glued.mutable_doc (
 );
 
 -- Idempotency: one active row per content (allows tombstoned duplicates)
-CREATE UNIQUE INDEX IF NOT EXISTS mutable_doc_nonce_uq_active ON glued.mutable_doc (nonce) WHERE dat IS NULL;
 CREATE INDEX IF NOT EXISTS mutable_doc_iat_desc ON glued.mutable_doc (iat DESC);
 CREATE INDEX IF NOT EXISTS mutable_doc_uat_desc ON glued.mutable_doc (uat DESC);
 
@@ -117,8 +116,6 @@ CREATE INDEX icl_ext_uat_ver_desc ON ingest_changelog (ext_id, uat DESC, version
 
 -- Temporal integrity constraint
 ALTER TABLE ingest_changelog ADD CONSTRAINT icl_no_overlap UNIQUE (uuid, period WITHOUT OVERLAPS);
-
-
 
 */
 
