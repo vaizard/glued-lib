@@ -137,7 +137,6 @@ final class DbMutable extends Base
     public function upsertWithLog(array|object $doc, array|object $meta = [], ?string $sat = null): array
     {
         $logTable = $this->requireLogTable();
-
         $uuid = (string) ((is_array($doc) ? ($doc['uuid'] ?? null) : ($doc->uuid ?? null)) ?? Uuid::uuid4());
         [$d, $m] = $this->normalize($doc, $meta, $uuid);
         $docJson  = json_encode($d, $this->jsonFlags);
@@ -314,14 +313,18 @@ final class DbMutable extends Base
             : $this->docCol;
 
         $this->query = "
-        UPDATE {$this->schema}.{$this->table}
+        WITH ts AS (
+          SELECT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint AS ms
+        )
+        UPDATE {$this->schema}.{$this->table} AS t
            SET doc  = {$docExpr},
-               dat  = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
-               uat  = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
-               sat  = COALESCE(:sat, sat),
-               meta = COALESCE(:meta::jsonb, meta)
-         WHERE {$this->uuidCol} = :uuid
-        ";
+               dat  = ts.ms,
+               uat  = ts.ms,
+               sat  = COALESCE(:sat, t.sat),
+               meta = COALESCE(:meta::jsonb, t.meta)
+          FROM ts
+         WHERE t.{$this->uuidCol} = :uuid
+    ";
         $this->params = [
             ':sat'  => $sat,
             ':meta' => $metaJson,
@@ -334,7 +337,7 @@ final class DbMutable extends Base
     }
 
     /**
-     * Soft-delete (WITH LOG).
+     * Soft-delete (WITH LOG) — uses one timestamp for dat/uat and for the log row's iat.
      */
     public function softDelete(string $uuid, ?string $sat = null, array|object $metaExtra = []): void
     {
@@ -342,20 +345,24 @@ final class DbMutable extends Base
         $metaJson = json_encode((array)$metaExtra, $this->jsonFlags);
 
         $this->query = "
-        WITH upd AS (
+        WITH ts AS (
+          SELECT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint AS ms
+        ),
+        upd AS (
           UPDATE {$this->schema}.{$this->table} AS t
              SET doc  = {$this->docCol} || jsonb_build_object('_deleted', true),
-                 dat  = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
-                 uat  = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
+                 dat  = ts.ms,
+                 uat  = ts.ms,
                  sat  = COALESCE(:sat, t.sat),
                  meta = COALESCE(:meta::jsonb, t.meta)
+            FROM ts
            WHERE t.{$this->uuidCol} = :uuid
           RETURNING
             t.uuid, t.doc, t.meta, t.sat, t.dat,
             decode(md5((t.doc - 'uuid')::text), 'hex') AS nonce_calc
         )
         INSERT INTO {$this->schema}.{$logTable} (uuid, doc, meta, iat, sat, dat)
-        SELECT u.uuid, u.doc, u.meta, (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint, u.sat, u.dat
+        SELECT u.uuid, u.doc, u.meta, u.dat /* iat == dat */, u.sat, u.dat
           FROM upd u
          WHERE COALESCE(
                  (SELECT l.nonce
@@ -365,7 +372,7 @@ final class DbMutable extends Base
                    LIMIT 1),
                  '\x'::bytea
                ) IS DISTINCT FROM u.nonce_calc
-        ";
+    ";
         $this->params = [ ':sat' => $sat, ':meta' => $metaJson, ':uuid' => $uuid ];
         $this->stmt = $this->pdo->prepare($this->query);
         foreach ($this->params as $k => $v) $this->stmt->bindValue($k, $v);
@@ -399,7 +406,7 @@ final class DbMutable extends Base
     }
 
     /**
-     * Bitemporal read (from logged_doc).
+     * Bitemporal read (from $this->requireLogTable()).
      */
     public function getAsOf(string $uuid, \DateTimeInterface $asOf): ?array
     {
@@ -410,7 +417,7 @@ final class DbMutable extends Base
         SELECT {$this->docCol} || jsonb_build_object(
                  'meta', meta, 'iat', iat, 'dat', dat, 'sat', sat
                )
-          FROM {$this->schema}.logged_doc
+          FROM {$this->schema}.{$this->requireLogTable()}
          WHERE uuid = :u
            AND period @> :asof::bigint
          ORDER BY iat DESC
