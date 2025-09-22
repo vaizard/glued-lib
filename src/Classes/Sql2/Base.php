@@ -28,10 +28,7 @@ CREATE TABLE glued.mutable_doc (
 );
 
 -- Idempotency: one active row per content (allows tombstoned duplicates)
-CREATE UNIQUE INDEX IF NOT EXISTS mutable_doc_nonce_uq_active
-  ON glued.mutable_doc (nonce)
-  WHERE dat IS NULL;
-
+CREATE UNIQUE INDEX IF NOT EXISTS mutable_doc_nonce_uq_active ON glued.mutable_doc (nonce) WHERE dat IS NULL;
 CREATE INDEX IF NOT EXISTS mutable_doc_iat_desc ON glued.mutable_doc (iat DESC);
 CREATE INDEX IF NOT EXISTS mutable_doc_uat_desc ON glued.mutable_doc (uat DESC);
 
@@ -40,33 +37,26 @@ CREATE INDEX IF NOT EXISTS mutable_doc_uat_desc ON glued.mutable_doc (uat DESC);
 -- LOGGED (append only)
 -- =========================
 
-DROP TABLE IF EXISTS logged_doc CASCADE;
-CREATE TABLE logged_doc (
-    uuid     uuid NOT NULL,
-    version  uuid DEFAULT uuidv7() NOT NULL,
-    doc      jsonb NOT NULL,
-    meta     jsonb NOT NULL DEFAULT '{}'::jsonb,
-    nonce    bytea GENERATED ALWAYS AS (decode(md5((doc - 'uuid')::text), 'hex')) STORED,
-    iat      timestamptz DEFAULT now() NOT NULL,              -- log append time
-    uat      timestamptz GENERATED ALWAYS AS (iat) VIRTUAL,   -- same as iat
-    dat      timestamptz,                                     -- tombstone time (soft delete)
-    sat      text,
-    nbf      timestamptz,
-    exp      timestamptz,
-    period   tstzrange  GENERATED ALWAYS AS (tstzrange(COALESCE(nbf, iat), COALESCE(exp, 'infinity'::timestamptz), '[)')) VIRTUAL,
-    PRIMARY KEY (version)
+DROP TABLE IF EXISTS glued.logged_doc CASCADE;
+CREATE TABLE glued.logged_doc (
+  uuid     uuid  NOT NULL,
+  version  uuid  DEFAULT uuidv7() NOT NULL,
+  doc      jsonb NOT NULL,
+  meta     jsonb NOT NULL DEFAULT '{}'::jsonb,
+  nonce    bytea GENERATED ALWAYS AS (decode(md5((doc - 'uuid')::text), 'hex')) STORED,
+  iat      bigint DEFAULT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint NOT NULL, -- append time (ms)
+  uat      bigint GENERATED ALWAYS AS (iat) VIRTUAL NOT NULL,
+  dat      bigint,
+  sat      text,
+  period int8range GENERATED ALWAYS AS ( int8range(
+              COALESCE((meta->>'nbf')::bigint, iat),
+              COALESCE(LEAST(dat, (meta->>'exp')::bigint), dat, (meta->>'exp')::bigint),
+              '[)'
+         ) ) VIRTUAL,
+  PRIMARY KEY (version)
 );
 
-CREATE INDEX        logged_doc_uuid_iat_desc ON logged_doc (uuid, iat DESC);
-
--- Optional temporal integrity if you *actively* manage meta.exp:
--- ALTER TABLE logged_doc
---   ADD CONSTRAINT logged_doc_no_overlap UNIQUE (uuid, period WITHOUT OVERLAPS);  -- [PG18]
-
--- Optional DB-level append-only (no UPDATE/DELETE)
-ALTER TABLE logged_doc ENABLE ROW LEVEL SECURITY;
-REVOKE UPDATE, DELETE ON logged_doc FROM PUBLIC;
-CREATE POLICY logged_insert_only ON logged_doc FOR INSERT WITH CHECK (true);
+CREATE INDEX IF NOT EXISTS logged_doc_uuid_iat_desc ON glued.logged_doc (uuid, iat DESC);
 
 
 -- =========================
