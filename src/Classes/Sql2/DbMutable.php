@@ -220,9 +220,12 @@ final class DbMutable extends Base
      */
     public function patchDoc(string $uuid, array|object $patch, ?string $sat = null, array|object $metaForLog = []): array
     {
-        $patched = $this->getApply($patch, $uuid);
-
-        $meta = $metaForLog ?: $this->fetchRawMeta($uuid) ?? [];
+        if (empty((array)$patch)) throw new \InvalidArgumentException('Empty patch.');
+        $currentDoc = $this->fetchRawDoc($uuid);
+        if (!$currentDoc) throw new \RuntimeException('Document not found.', 404);
+        $patched = (array)(new JsonMergePatch())->apply((object)$currentDoc, (object)$patch);
+        $patched['uuid'] = $uuid; // keep invariant
+        $meta = $metaForLog ?: ($this->fetchRawMeta($uuid) ?? []);
         $this->upsertWithLog($patched, $meta, $sat);
         return $patched;
     }
@@ -232,16 +235,14 @@ final class DbMutable extends Base
      */
     public function patchMeta(string $uuid, array|object $metaPatch, ?string $sat = null): array
     {
-        if (empty($metaPatch)) throw new \InvalidArgumentException('Empty meta patch.');
+        if (empty((array)$metaPatch)) throw new \InvalidArgumentException('Empty meta patch.');
         $curr = $this->get($uuid);
         if (!$curr) throw new \RuntimeException('Document not found.', 404);
-
-        $patcher = new JsonMergePatch();
-        $metaNew = (array)$patcher->apply((object)($curr['meta'] ?? []), (object)$metaPatch);
-
+        $metaNew = (array)(new JsonMergePatch())->apply((object)($curr['meta'] ?? []), (object)$metaPatch);
+        // Log the change by writing a new version (doc unchanged, meta updated)
         $this->upsertWithLog($curr, $metaNew, $sat);
-        $res = $this->get($uuid);
-        return $res ?? [];
+        // Return fresh merged envelope (doc + meta + timestamps)
+        return $this->get($uuid) ?? [];
     }
 
     /**
@@ -251,26 +252,25 @@ final class DbMutable extends Base
      */
     public function patchDocNoLog(string $uuid, array|object $patch, ?string $sat = null): array
     {
-        $patched = $this->getApply($patch, $uuid);
+        if (empty((array)$patch)) throw new \InvalidArgumentException('Empty patch.');
+        $currentDoc = $this->fetchRawDoc($uuid);
+        if (!$currentDoc) throw new \RuntimeException('Document not found.', 404);
+        $patched = (array)(new JsonMergePatch())->apply((object)$currentDoc, (object)$patch);
+        $patched['uuid'] = $uuid;
         $docJson = json_encode($patched, $this->jsonFlags);
 
         $this->query = "
-        UPDATE {$this->schema}.{$this->table}
-           SET doc = :doc::jsonb,
-               uat = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
-               sat = COALESCE(:sat, sat)
-         WHERE {$this->uuidCol} = :uuid
+            UPDATE {$this->schema}.{$this->table}
+               SET doc = :doc::jsonb,
+                   uat = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
+                   sat = COALESCE(:sat, sat)
+            WHERE {$this->uuidCol} = :uuid
         ";
-        $this->params = [
-            ':doc'  => $docJson,
-            ':sat'  => $sat,
-            ':uuid' => $uuid,
-        ];
+        $this->params = [ ':doc' => $docJson, ':sat' => $sat, ':uuid' => $uuid ];
         $this->stmt = $this->pdo->prepare($this->query);
         foreach ($this->params as $k => $v) $this->stmt->bindValue($k, $v);
         $this->stmt->execute();
         $this->reset();
-
         return $patched;
     }
 
@@ -281,25 +281,19 @@ final class DbMutable extends Base
      */
     public function patchMetaNoLog(string $uuid, array|object $metaPatch, ?string $sat = null): array
     {
-        if (empty($metaPatch)) throw new \InvalidArgumentException('Empty meta patch.');
+        if (empty((array)$metaPatch)) throw new \InvalidArgumentException('Empty meta patch.');
         $currentMeta = $this->fetchRawMeta($uuid) ?? [];
-
-        $patcher = new JsonMergePatch();
-        $metaNew = (array)$patcher->apply((object)$currentMeta, (object)$metaPatch);
+        $metaNew = (array)(new JsonMergePatch())->apply((object)$currentMeta, (object)$metaPatch);
         $metaJson = json_encode($metaNew, $this->jsonFlags);
 
         $this->query = "
-        UPDATE {$this->schema}.{$this->table}
-           SET meta = :meta::jsonb,
-               uat  = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
-               sat  = COALESCE(:sat, sat)
-         WHERE {$this->uuidCol} = :uuid
+            UPDATE {$this->schema}.{$this->table}
+               SET meta = :meta::jsonb,
+                   uat  = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
+                   sat  = COALESCE(:sat, sat)
+            WHERE {$this->uuidCol} = :uuid
         ";
-        $this->params = [
-            ':meta' => $metaJson,
-            ':sat'  => $sat,
-            ':uuid' => $uuid,
-        ];
+        $this->params = [ ':meta' => $metaJson, ':sat' => $sat, ':uuid' => $uuid ];
         $this->stmt = $this->pdo->prepare($this->query);
         foreach ($this->params as $k => $v) $this->stmt->bindValue($k, $v);
         $this->stmt->execute();
@@ -431,20 +425,4 @@ final class DbMutable extends Base
         return $row ? json_decode($row, true) : null;
     }
 
-    /**
-     * @param object|array $patch
-     * @param string $uuid
-     * @return array
-     */
-    public function getApply(object|array $patch, string $uuid): array
-    {
-        if (empty($patch)) throw new \InvalidArgumentException('Empty patch.');
-        $currentDoc = $this->fetchRawDoc($uuid);
-        if (!$currentDoc) throw new \RuntimeException('Document not found.', 404);
-
-        $patcher = new JsonMergePatch();
-        $patched = (array)$patcher->apply((object)$currentDoc, (object)$patch);
-        $patched['uuid'] = $uuid;
-        return $patched;
-    }
 }
