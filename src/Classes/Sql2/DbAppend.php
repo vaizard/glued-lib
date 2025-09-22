@@ -14,7 +14,6 @@ use Rs\Json\Merge\Patch as JsonMergePatch;
  *
  * Table contract (logged_doc):
  * - PK(version), uuid, doc, meta, iat, sat, dat?, virtual period
- * - UNIQUE (uuid, nonce) for dedupe
  */
 final class DbAppend extends Base
 {
@@ -32,39 +31,51 @@ final class DbAppend extends Base
     {
         $uuid = (string)($doc['uuid'] ?? Uuid::uuid4());
         [$d, $m] = $this->normalize($doc, $meta, $uuid);
-        $docJson = json_encode($d, $this->jsonFlags);
+        $docJson  = json_encode($d, $this->jsonFlags);
         $metaJson = json_encode($m, $this->jsonFlags);
 
         $this->query = "
-        INSERT INTO {$this->schema}.{$this->table} (uuid, doc, meta, iat, sat)
-        VALUES (:uuid::uuid, :doc::jsonb, :meta::jsonb, now(), :sat)
-        ON CONFLICT (uuid, nonce) DO NOTHING
-        RETURNING version
-        ";
-        $this->params = [
-            ':uuid' => $uuid,
-            ':doc' => $docJson,
-            ':meta' => $metaJson,
-            ':sat' => $sat,
-        ];
+        WITH candidate AS (
+          SELECT
+            :uuid::uuid                                    AS uuid,
+            :doc::jsonb                                    AS doc,
+            :meta::jsonb                                   AS meta,
+            :sat                                           AS sat,
+            (EXTRACT(EPOCH FROM clock_timestamp())*1000)::bigint AS iat,
+            decode(md5((:doc::jsonb - 'uuid')::text), 'hex')     AS nonce_calc
+        ),
+        ins AS (
+          INSERT INTO {$this->schema}.{$this->table} (uuid, doc, meta, iat, sat)
+          SELECT c.uuid, c.doc, c.meta, c.iat, c.sat
+            FROM candidate c
+           WHERE COALESCE(
+                   (SELECT l.nonce
+                      FROM {$this->schema}.{$this->table} l
+                     WHERE l.{$this->uuidCol} = c.uuid
+                     ORDER BY l.iat DESC, {$this->versionCol} DESC
+                     LIMIT 1),
+                   '\x'::bytea
+                 ) IS DISTINCT FROM c.nonce_calc
+          RETURNING {$this->versionCol}
+        )
+        SELECT COALESCE(
+                 (SELECT {$this->versionCol} FROM ins),
+                 (SELECT {$this->versionCol}
+                    FROM {$this->schema}.{$this->table}
+                   WHERE {$this->uuidCol} = :uuid
+                   ORDER BY iat DESC, {$this->versionCol} DESC
+                   LIMIT 1)
+               ) AS version
+    ";
+        $this->params = [ ':uuid'=>$uuid, ':doc'=>$docJson, ':meta'=>$metaJson, ':sat'=>$sat ];
         $this->stmt = $this->pdo->prepare($this->query);
         foreach ($this->params as $k => $v) $this->stmt->bindValue($k, $v);
         $this->stmt->execute();
-        $ver = $this->stmt->fetchColumn();
+        $ver = (string)$this->stmt->fetchColumn();
         $this->reset();
-
-        if ($ver) return (string)$ver;
-
-        // Duplicate: return latest version id.
-        $this->query = "SELECT version FROM {$this->schema}.{$this->table} WHERE {$this->uuidCol} = :u ORDER BY iat DESC LIMIT 1";
-        $this->params = [':u' => $uuid];
-        $this->stmt = $this->pdo->prepare($this->query);
-        $this->stmt->bindValue(':u', $uuid);
-        $this->stmt->execute();
-        $ret = (string)$this->stmt->fetchColumn();
-        $this->reset();
-        return $ret;
+        return $ver;
     }
+
 
     /** Latest version envelope by uuid. */
     public function latest(string $uuid): ?array
@@ -72,11 +83,15 @@ final class DbAppend extends Base
         return $this->get($uuid);
     }
 
-
     /** Fetch a specific version envelope by version UUID. */
     public function byVersion(string $version): ?array
     {
-        $this->query = "SELECT {$this->selectEnvelope()} FROM {$this->schema}.{$this->table} WHERE version = :v";
+        $this->query = "
+            SELECT {$this->selectEnvelope()}
+              FROM {$this->schema}.{$this->table}
+             WHERE {$this->versionCol} = :v
+             LIMIT 1
+        ";
         $this->params = [':v' => $version];
         $this->stmt = $this->pdo->prepare($this->query);
         $this->stmt->bindValue(':v', $version);
@@ -86,5 +101,3 @@ final class DbAppend extends Base
         return $row ? json_decode($row, true) : null;
     }
 }
-
-
