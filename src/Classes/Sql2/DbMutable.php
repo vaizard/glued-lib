@@ -124,32 +124,46 @@ final class DbMutable extends Base
      */
     public function upsertWithLog(array|object $doc, array|object $meta = [], ?string $sat = null): string
     {
+        $logtable = $this->requireLogTable();
         $uuid = (string) ((is_array($doc) ? ($doc['uuid'] ?? null) : ($doc->uuid ?? null)) ?? Uuid::uuid4());
         [$d, $m] = $this->normalize($doc, $meta, $uuid);
         $docJson  = json_encode($d, $this->jsonFlags);
         $metaJson = json_encode($m, $this->jsonFlags);
 
         $this->query = "
-    WITH up AS (
-      INSERT INTO {$this->schema}.{$this->table} (doc, meta, sat, iat, uat)
-      VALUES (:doc::jsonb, :meta::jsonb, :sat,
-              (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
-              (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint)
-      ON CONFLICT ({$this->uuidCol}) DO UPDATE
-        SET doc = EXCLUDED.doc,
-            meta = EXCLUDED.meta,
-            sat  = EXCLUDED.sat,
-            uat  = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
-            version = uuidv7()                               -- << bump on real update
-      RETURNING uuid, doc, meta, sat
-    )
-    INSERT INTO {$this->schema}.{$this->requireLogTable()} (uuid, doc, meta, iat, sat)
-    SELECT uuid, doc, meta, (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint, sat FROM up
-    ON CONFLICT (uuid, nonce) DO NOTHING
-    RETURNING uuid
+        WITH up AS (
+          INSERT INTO {$this->schema}.{$this->table} AS t (doc, meta, sat, iat, uat)
+          VALUES (:doc::jsonb, :meta::jsonb, :sat,
+                  (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
+                  (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint)
+          ON CONFLICT ({$this->uuidCol}) DO UPDATE
+            SET doc = EXCLUDED.doc,
+                meta = EXCLUDED.meta,
+                sat  = EXCLUDED.sat,
+                uat  = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
+                version = uuidv7()
+          RETURNING
+            t.uuid,
+            t.doc,
+            t.meta,
+            t.sat,
+            decode(md5((t.doc - 'uuid')::text), 'hex') AS nonce_calc
+        )
+        INSERT INTO {$this->schema}.{$logtable} (uuid, doc, meta, iat, sat)
+        SELECT u.uuid, u.doc, u.meta, (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint, u.sat
+          FROM up u
+         WHERE COALESCE(
+                 (SELECT l.nonce
+                    FROM {$this->schema}.{$logtable} l
+                   WHERE l.uuid = u.uuid
+                   ORDER BY l.iat DESC, l.version DESC
+                   LIMIT 1),
+                 '\x'::bytea
+               ) IS DISTINCT FROM u.nonce_calc
+        RETURNING uuid
     ";
 
-        $this->params = [ ':doc'=>$docJson, ':meta'=>$metaJson, ':sat'=>$sat ];
+        $this->params = [ ':doc' => $docJson, ':meta' => $metaJson, ':sat' => $sat ];
         $this->stmt = $this->pdo->prepare($this->query);
         foreach ($this->params as $k => $v) $this->stmt->bindValue($k, $v);
         $this->stmt->execute();
@@ -157,6 +171,7 @@ final class DbMutable extends Base
         $this->reset();
         return $uuidRet ?: $uuid;
     }
+
 
     /**
      * JSON Merge Patch DOC + LOG.
@@ -287,33 +302,41 @@ final class DbMutable extends Base
      */
     public function softDelete(string $uuid, ?string $sat = null, array|object $metaExtra = []): void
     {
+        $logTable = $this->requireLogTable();
         $metaJson = json_encode((array)$metaExtra, $this->jsonFlags);
 
         $this->query = "
         WITH upd AS (
-          UPDATE {$this->schema}.{$this->table}
-             SET doc = {$this->docCol} || jsonb_build_object('_deleted', true),
-                 dat = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
-                 uat = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
-                 sat = COALESCE(:sat, sat),
-                 meta = COALESCE(:meta::jsonb, meta)
-           WHERE {$this->uuidCol} = :uuid
-          RETURNING uuid, doc, meta, sat, dat
+          UPDATE {$this->schema}.{$this->table} AS t
+             SET doc  = {$this->docCol} || jsonb_build_object('_deleted', true),
+                 dat  = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
+                 uat  = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
+                 sat  = COALESCE(:sat, t.sat),
+                 meta = COALESCE(:meta::jsonb, t.meta)
+           WHERE t.{$this->uuidCol} = :uuid
+          RETURNING
+            t.uuid, t.doc, t.meta, t.sat, t.dat,
+            decode(md5((t.doc - 'uuid')::text), 'hex') AS nonce_calc
         )
-        INSERT INTO {$this->schema}.{$this->requireLogTable()} (uuid, doc, meta, iat, sat, dat)
-        SELECT uuid, doc, meta, (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint, sat, dat FROM upd
-        ON CONFLICT (uuid, nonce) DO NOTHING
+        INSERT INTO {$this->schema}.{$logTable} (uuid, doc, meta, iat, sat, dat)
+        SELECT u.uuid, u.doc, u.meta, (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint, u.sat, u.dat
+          FROM upd u
+         WHERE COALESCE(
+                 (SELECT l.nonce
+                    FROM {$this->schema}.{$logTable} l
+                   WHERE l.uuid = u.uuid
+                   ORDER BY l.iat DESC, l.version DESC
+                   LIMIT 1),
+                 '\x'::bytea
+               ) IS DISTINCT FROM u.nonce_calc
         ";
-        $this->params = [
-            ':sat'  => $sat,
-            ':meta' => $metaJson,
-            ':uuid' => $uuid,
-        ];
+        $this->params = [ ':sat' => $sat, ':meta' => $metaJson, ':uuid' => $uuid ];
         $this->stmt = $this->pdo->prepare($this->query);
         foreach ($this->params as $k => $v) $this->stmt->bindValue($k, $v);
         $this->stmt->execute();
         $this->reset();
     }
+
 
     /* ----------------- internals ----------------- */
 
