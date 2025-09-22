@@ -22,8 +22,10 @@ interface TransformerInterface
 /**
  * External ingest (append-only, stable uuid per ext_id via UUID v5).
  *
- * Table contract (external_ingest_log):
- * - PK (uuid, version), uuid stable v5(ext_id), UNIQUE (uuid, nonce)
+ * Table contract (ingest_changelog):
+ * - PK (uuid, version), stable uuid v5(ext_id), NON-UNIQUE (uuid, nonce)  ← consecutive dedupe in SQL
+ * - iat/uat: bigint ms since epoch
+ * - period: STORED, clamped
  */
 final class IngestVersioned extends Base
 {
@@ -33,52 +35,65 @@ final class IngestVersioned extends Base
     }
 
     /**
-     * Append a versioned ingest row. Duplicate content (same uuid, nonce) is ignored.
+     * Append a versioned ingest row.
+     * Consecutive dedupe: if the incoming doc has the same nonce as the last version for this uuid,
+     * returns null; otherwise inserts and returns {uuid,version,iat}.
      *
-     * @param array|object $doc
-     * @param string $extId
-     * @param string $sourceName Namespacing input for the v5 stable uuid
-     * @param array|object $meta
-     * @param string|null $sat
-     * @return array{uuid:string,version:string,iat:string}|null  null if duplicate content
+     * @return array{uuid:string,version:string,iat:string}|null
      */
     public function log(array|object $doc, string $extId, string $sourceName, array|object $meta = [], ?string $sat = null): ?array
     {
-        [$d, $m] = $this->normalize($doc, $meta);
-        $docJson = json_encode($d, $this->jsonFlags);
-        $metaJson = json_encode($m, $this->jsonFlags);
-        $stable = UuidTools::stableForSource($this->table, $sourceName, $extId);
+        [$d, $m]   = $this->normalize($doc, $meta);
+        $docJson   = json_encode($d, $this->jsonFlags);
+        $metaJson  = json_encode($m, $this->jsonFlags);
+        $stable    = UuidTools::stableForSource($this->table, $sourceName, $extId);
 
         $this->query = "
-        INSERT INTO {$this->schema}.{$this->table} (ext_id, uuid, doc, meta, sat, iat)
-        VALUES (:ext, :uuid::uuid, :doc::jsonb, :meta::jsonb, :sat, now())
-        ON CONFLICT (uuid, nonce) DO NOTHING
-        RETURNING uuid, version, iat
+        WITH lock AS (
+          SELECT pg_advisory_xact_lock(hashtext(:uuid))
+        ),
+        candidate AS (
+          SELECT
+            :uuid::uuid                                        AS uuid,
+            :ext                                               AS ext_id,
+            :doc::jsonb                                        AS doc,
+            :meta::jsonb                                       AS meta,
+            :sat                                               AS sat,
+            (EXTRACT(EPOCH FROM clock_timestamp())*1000)::bigint AS iat,
+            decode(md5((:doc::jsonb)::text), 'hex')            AS nonce_calc
+        ),
+        last AS (
+          SELECT l.nonce
+            FROM {$this->schema}.{$this->table} l
+           WHERE l.{$this->uuidCol} = :uuid
+           ORDER BY l.iat DESC, {$this->versionCol} DESC
+           LIMIT 1
+        ),
+        ins AS (
+          INSERT INTO {$this->schema}.{$this->table} (ext_id, uuid, doc, meta, iat, sat)
+          SELECT c.ext_id, c.uuid, c.doc, c.meta, c.iat, c.sat
+            FROM candidate c
+           WHERE COALESCE((SELECT nonce FROM last), '\x'::bytea) IS DISTINCT FROM c.nonce_calc
+          RETURNING {$this->uuidCol} AS uuid, {$this->versionCol} AS version, iat
+        )
+        SELECT to_jsonb(ins.*) FROM ins
         ";
         $this->params = [
-            ':ext' => $extId,
+            ':ext'  => $extId,
             ':uuid' => $stable,
-            ':doc' => $docJson,
+            ':doc'  => $docJson,
             ':meta' => $metaJson,
-            ':sat' => $sat,
+            ':sat'  => $sat,
         ];
         $this->stmt = $this->pdo->prepare($this->query);
         foreach ($this->params as $k => $v) $this->stmt->bindValue($k, $v);
         $this->stmt->execute();
-
-        $row = $this->stmt->fetch(PDO::FETCH_ASSOC);
+        $rowJson = $this->stmt->fetchColumn();
         $this->reset();
-        if ($row) return (array)$row;
 
-        // Duplicate content: fetch latest for this stream
-        $this->query = "SELECT uuid, version, iat FROM {$this->schema}.{$this->table} WHERE ext_id = :ext ORDER BY iat DESC LIMIT 1";
-        $this->params = [':ext' => $extId];
-        $this->stmt = $this->pdo->prepare($this->query);
-        $this->stmt->bindValue(':ext', $extId);
-        $this->stmt->execute();
-        $existing = $this->stmt->fetch(PDO::FETCH_ASSOC);
-        $this->reset();
-        return $existing ? (array)$existing : null;
+        /** @var array{uuid:string,version:string,iat:string}|null $row */
+        $row = $rowJson ? json_decode($rowJson, true) : null;
+        return $row;
     }
 
     /**
@@ -107,41 +122,41 @@ final class IngestVersioned extends Base
         TransformerInterface|callable $transform,
         array                         $options = []
     ): array {
-        $updateMutable = $options['updateMutable'] ?? true;
-        $linkMeta = $options['linkMeta'] ?? [];
+        $updateMutable  = $options['updateMutable']  ?? true;
+        $linkMeta       = $options['linkMeta']       ?? [];
         $onDuplicateRaw = $options['onDuplicateRaw'] ?? 'skip'; // 'skip' or 'transform'
 
         $pdo = $this->pdo;
         $pdo->beginTransaction();
         try {
-            // 1) RAW insert
-            $rawRow = $this->log($rawDoc, $extId, $rawMeta, $sat); // may return null if your log() ever dedupes; as written it always inserts
-            $extUuid = UuidTools::stableForSource('external_ingest_log', $sourceName, $extId);
+            // 1) RAW insert (versioned stream)
+            $rawRow  = $this->log($rawDoc, $extId, $sourceName, $rawMeta, $sat); // null if consecutive duplicate
+            $extUuid = UuidTools::stableForSource($this->table, $sourceName, $extId);
 
             if ($rawRow === null && $onDuplicateRaw === 'skip') {
                 $pdo->commit();
                 return ['raw' => null, 'internal' => []];
             }
 
-            // 2) transform RAW → INTERNAL (1→N allowed)
-            $rawDocArr = (array)$rawDoc;
+            // 2) transform RAW → INTERNAL (1→N)
+            $rawDocArr  = (array)$rawDoc;
             $rawMetaArr = (array)$rawMeta;
             $items = is_callable($transform)
                 ? $transform($rawDocArr, $rawMetaArr, $extId)
                 : $transform->transform($rawDocArr, $rawMetaArr, $extId);
 
-            $logged = new LoggedRepo($pdo);
+            $logged  = new LoggedRepo($pdo);
             $mutable = new MutableRepo($pdo);
 
             $out = [];
             foreach ($items as $it) {
-                $intDoc = (array)($it['doc'] ?? []);
+                $intDoc  = (array)($it['doc'] ?? []);
                 $intMeta = (array)($it['meta'] ?? []);
-                $intSat = $it['sat'] ?? $sat;
+                $intSat  = $it['sat'] ?? $sat;
                 $intUuid = (string)($it['uuid'] ?? ($intDoc['uuid'] ?? Uuid::uuid4()->toString()));
                 $intDoc['uuid'] = $intUuid;
 
-                // 3a) Append internal version (dedup by (uuid, nonce))
+                // 3a) Append internal version (consecutive dedupe in LoggedRepo)
                 $ver = $logged->append($intDoc, $intMeta, $intSat);
 
                 // 3b) Upsert mutable + log on change (optional)
@@ -149,19 +164,20 @@ final class IngestVersioned extends Base
                     $mutable->upsertWithLog($intDoc, $intMeta, $intSat);
                 }
 
-                // 4) Link RAW ↔ INTERNAL
+                // 4) Link RAW ↔ INTERNAL (ms timestamps)
                 $stmt = $pdo->prepare("
+                  WITH ts AS (SELECT (EXTRACT(EPOCH FROM clock_timestamp())*1000)::bigint AS ms)
                   INSERT INTO glued.ext_int_map (ext_uuid, ext_id, source, int_uuid, meta, iat, uat)
-                  VALUES (:ext_uuid::uuid, :ext_id, :source, :int_uuid::uuid, :meta::jsonb, now(), now())
+                  SELECT :ext_uuid::uuid, :ext_id, :source, :int_uuid::uuid, :meta::jsonb, ts.ms, ts.ms FROM ts
                   ON CONFLICT (ext_uuid, int_uuid) DO UPDATE
                     SET meta = COALESCE(:meta::jsonb, ext_int_map.meta),
-                        uat  = now()
+                        uat  = (EXTRACT(EPOCH FROM clock_timestamp())*1000)::bigint
                 ");
                 $stmt->bindValue(':ext_uuid', $extUuid);
-                $stmt->bindValue(':ext_id', $extId);
-                $stmt->bindValue(':source', $sourceName);
+                $stmt->bindValue(':ext_id',   $extId);
+                $stmt->bindValue(':source',   $sourceName);
                 $stmt->bindValue(':int_uuid', $intUuid);
-                $stmt->bindValue(':meta', json_encode($linkMeta, $this->jsonFlags));
+                $stmt->bindValue(':meta',     json_encode($linkMeta, $this->jsonFlags));
                 $stmt->execute();
 
                 $out[] = ['uuid' => $intUuid, 'version' => $ver];
