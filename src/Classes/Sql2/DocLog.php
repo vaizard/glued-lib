@@ -15,7 +15,7 @@ use Rs\Json\Merge\Patch as JsonMergePatch;
  * Table contract (logged_doc):
  * - PK(version), uuid, doc, meta, iat, sat, dat?, virtual period
  */
-final class DbAppend extends Base
+final class DocLog extends Base
 {
     public function __construct(PDO $pdo, string $table, ?string $schema = 'glued')
     {
@@ -27,7 +27,7 @@ final class DbAppend extends Base
      *
      * @return string Version UUID (existing latest if duplicate content, otherwise new)
      */
-    public function append(array|object $doc, array|object $meta = [], ?string $sat = null): array
+    public function appendIfChanged(array|object $doc, array|object $meta = [], ?string $sat = null): array
     {
         $uuid = (string)((is_array($doc) ? ($doc['uuid'] ?? null) : ($doc->uuid ?? null)) ?? Uuid::uuid4());
         [$d, $m]  = $this->normalize($doc, $meta, $uuid);
@@ -93,13 +93,13 @@ final class DbAppend extends Base
 
 
     /** Latest version envelope by uuid. */
-    public function latest(string $uuid): ?array
+    public function getLatest(string $uuid): ?array
     {
         return $this->get($uuid);
     }
 
     /** Fetch a specific version envelope by version UUID. */
-    public function byVersion(string $version): ?array
+    public function getByVersion(string $version): ?array
     {
         $this->query = "
             SELECT {$this->selectEnvelope()}

@@ -47,7 +47,7 @@ final class IngestVersioned extends Base
      *
      * @return array{uuid:string,version:string,iat:string,nonce:string}
      */
-    public function log(array|object $doc, string $extId, string $sourceName, array|object $meta = [], ?string $sat = null): array
+    public function appendIfChanged(array|object $doc, string $extId, string $sourceName, array|object $meta = [], ?string $sat = null): array
     {
         [$d, $m]  = $this->normalize($doc, $meta);
         $docJson  = json_encode($d, $this->jsonFlags);

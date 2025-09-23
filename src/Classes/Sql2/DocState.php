@@ -18,7 +18,7 @@ use Rs\Json\Merge\Patch as JsonMergePatch;
  *  - softDelete(): mark deleted + log
  *  - softDeleteNoLog(): mark deleted without log
  */
-final class DbMutable extends Base
+final class DocState extends Base
 {
     /** @var ?string Target history table (append-only) */
     private ?string $logTable;
@@ -67,7 +67,7 @@ final class DbMutable extends Base
      * @param string|null  $sat   Raw source timestamp
      * @return array{uuid:string,version:string,iat:string,nonce:string}
      */
-    public function upsert(array|object $doc, array|object $meta = new \stdClass(), ?string $sat = null): array
+    public function put(array|object $doc, array|object $meta = new \stdClass(), ?string $sat = null): array
     {
         $uuid = (string) ((is_array($doc) ? ($doc['uuid'] ?? null) : ($doc->uuid ?? null)) ?? Uuid::uuid4());
         [$d, $m] = $this->normalize($doc, $meta, $uuid);
@@ -134,7 +134,7 @@ final class DbMutable extends Base
      * @param string|null  $sat
      * @return array{uuid:string,version:string,iat:string,nonce:string}
      */
-    public function upsertWithLog(array|object $doc, array|object $meta = [], ?string $sat = null): array
+    public function putAndLog(array|object $doc, array|object $meta = [], ?string $sat = null): array
     {
         $logTable = $this->requireLogTable();
         $uuid = (string) ((is_array($doc) ? ($doc['uuid'] ?? null) : ($doc->uuid ?? null)) ?? Uuid::uuid4());
@@ -217,7 +217,7 @@ final class DbMutable extends Base
     /**
      * JSON Merge Patch DOC + LOG.
      */
-    public function patchDoc(string $uuid, array|object $patch, ?string $sat = null, array|object $metaForLog = []): array
+    public function patchDocAndLog(string $uuid, array|object $patch, ?string $sat = null, array|object $metaForLog = []): array
     {
         if (empty((array)$patch)) throw new \InvalidArgumentException('Empty patch.');
         $currentDoc = $this->fetchRawDoc($uuid);
@@ -232,7 +232,7 @@ final class DbMutable extends Base
     /**
      * JSON Merge Patch META + LOG.
      */
-    public function patchMeta(string $uuid, array|object $metaPatch, ?string $sat = null): array
+    public function patchMetaAndLog(string $uuid, array|object $metaPatch, ?string $sat = null): array
     {
         if (empty((array)$metaPatch)) throw new \InvalidArgumentException('Empty meta patch.');
         $curr = $this->get($uuid);
@@ -249,7 +249,7 @@ final class DbMutable extends Base
      *
      * @return array Patched DOC (raw)
      */
-    public function patchDocNoLog(string $uuid, array|object $patch, ?string $sat = null): array
+    public function patchDoc(string $uuid, array|object $patch, ?string $sat = null): array
     {
         if (empty((array)$patch)) throw new \InvalidArgumentException('Empty patch.');
         $currentDoc = $this->fetchRawDoc($uuid);
@@ -278,7 +278,7 @@ final class DbMutable extends Base
      *
      * @return array New META (raw)
      */
-    public function patchMetaNoLog(string $uuid, array|object $metaPatch, ?string $sat = null): array
+    public function patchMeta(string $uuid, array|object $metaPatch, ?string $sat = null): array
     {
         if (empty((array)$metaPatch)) throw new \InvalidArgumentException('Empty meta patch.');
         $currentMeta = $this->fetchRawMeta($uuid) ?? [];
@@ -304,7 +304,7 @@ final class DbMutable extends Base
     /**
      * Soft-delete (NO LOG): set dat=now(); optionally tombstone doc with {"_deleted": true}.
      */
-    public function softDeleteNoLog(string $uuid, ?string $sat = null, array|object $metaExtra = [], bool $tombstoneDoc = true): void
+    public function softDelete(string $uuid, ?string $sat = null, array|object $metaExtra = [], bool $tombstoneDoc = true): void
     {
         $metaJson = json_encode((array)$metaExtra, $this->jsonFlags);
 
@@ -339,7 +339,7 @@ final class DbMutable extends Base
     /**
      * Soft-delete (WITH LOG) — uses one timestamp for dat/uat and for the log row's iat.
      */
-    public function softDelete(string $uuid, ?string $sat = null, array|object $metaExtra = []): void
+    public function softDeleteAndLog(string $uuid, ?string $sat = null, array|object $metaExtra = []): void
     {
         $logTable = $this->requireLogTable();
         $metaJson = json_encode((array)$metaExtra, $this->jsonFlags);

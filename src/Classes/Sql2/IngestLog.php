@@ -38,7 +38,7 @@ use \PDO;
  * Table contract (ingest):
  * - PK (nonce, iat), doc, meta, ext_id, iat, sat
  */
-final class IngestAppend extends Base
+final class IngestLog extends Base
 {
 
     public function __construct(PDO $pdo, string $table, ?string $schema = 'glued')
@@ -82,7 +82,7 @@ final class IngestAppend extends Base
      *
      * @return array{uuid:string,version:string,iat:string,nonce:string}
      */
-    public function log(array|object $doc, string $extId, array|object $meta = [], ?string $sat = null): array
+    public function append(array|object $doc, string $extId, array|object $meta = [], ?string $sat = null): array
     {
         [$d, $m]  = $this->normalize($doc, $meta);
         $docJson  = json_encode($d, $this->jsonFlags);
