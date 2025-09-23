@@ -27,7 +27,7 @@ final class DbAppend extends Base
      *
      * @return string Version UUID (existing latest if duplicate content, otherwise new)
      */
-    public function append(array|object $doc, array|object $meta = [], ?string $sat = null): string
+    public function append(array|object $doc, array|object $meta = [], ?string $sat = null): array
     {
         $uuid = (string)((is_array($doc) ? ($doc['uuid'] ?? null) : ($doc->uuid ?? null)) ?? Uuid::uuid4());
         [$d, $m]  = $this->normalize($doc, $meta, $uuid);
