@@ -92,6 +92,16 @@ CREATE TABLE ingest_rawlog (
   uat      bigint GENERATED ALWAYS AS (iat) VIRTUAL NOT NULL,
   dat      bigint DEFAULT NULL,
   sat      text,
+  period   int8range GENERATED ALWAYS AS (
+             int8range(
+               COALESCE((meta->>'nbf')::bigint, iat),
+               GREATEST(
+                 COALESCE(LEAST(dat, (meta->>'exp')::bigint), dat, (meta->>'exp')::bigint),
+                 COALESCE((meta->>'nbf')::bigint, iat)
+               ),
+               '[)'
+             )
+           ) STORED,
   PRIMARY KEY (uuid)
 );
 
