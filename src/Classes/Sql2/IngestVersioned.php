@@ -41,43 +41,62 @@ final class IngestVersioned extends Base
      *
      * @return array{uuid:string,version:string,iat:string}|null
      */
-    public function log(array|object $doc, string $extId, string $sourceName, array|object $meta = [], ?string $sat = null): ?array
+    /**
+     * Append a versioned ingest row (consecutive dedupe, no advisory lock).
+     * Returns {uuid, version, iat, nonce}. If duplicate, falls back to latest row.
+     *
+     * @return array{uuid:string,version:string,iat:string,nonce:string}
+     */
+    public function log(array|object $doc, string $extId, string $sourceName, array|object $meta = [], ?string $sat = null): array
     {
-        [$d, $m]   = $this->normalize($doc, $meta);
-        $docJson   = json_encode($d, $this->jsonFlags);
-        $metaJson  = json_encode($m, $this->jsonFlags);
-        $stable    = UuidTools::stableForSource($this->table, $sourceName, $extId);
+        [$d, $m]  = $this->normalize($doc, $meta);
+        $docJson  = json_encode($d, $this->jsonFlags);
+        $metaJson = json_encode($m, $this->jsonFlags);
+        $stable   = UuidTools::stableForSource($this->table, $sourceName, $extId);
 
         $this->query = "
-        WITH lock AS (
-          SELECT pg_advisory_xact_lock(hashtext(:uuid))
-        ),
-        candidate AS (
-          SELECT
-            :uuid::uuid                                        AS uuid,
-            :ext                                               AS ext_id,
-            :doc::jsonb                                        AS doc,
-            :meta::jsonb                                       AS meta,
-            :sat                                               AS sat,
-            (EXTRACT(EPOCH FROM clock_timestamp())*1000)::bigint AS iat,
-            decode(md5((:doc::jsonb)::text), 'hex')            AS nonce_calc
-        ),
-        last AS (
-          SELECT l.nonce
-            FROM {$this->schema}.{$this->table} l
-           WHERE l.{$this->uuidCol} = :uuid
-           ORDER BY l.iat DESC, {$this->versionCol} DESC
-           LIMIT 1
-        ),
-        ins AS (
-          INSERT INTO {$this->schema}.{$this->table} (ext_id, uuid, doc, meta, iat, sat)
-          SELECT c.ext_id, c.uuid, c.doc, c.meta, c.iat, c.sat
-            FROM candidate c
-           WHERE COALESCE((SELECT nonce FROM last), '\x'::bytea) IS DISTINCT FROM c.nonce_calc
-          RETURNING {$this->uuidCol} AS uuid, {$this->versionCol} AS version, iat
-        )
-        SELECT to_jsonb(ins.*) FROM ins
-        ";
+    WITH candidate AS (
+      SELECT
+        :uuid::uuid                                        AS uuid,
+        :ext                                               AS ext_id,
+        :doc::jsonb                                        AS doc,
+        :meta::jsonb                                       AS meta,
+        :sat                                               AS sat,
+        (EXTRACT(EPOCH FROM clock_timestamp())*1000)::bigint AS iat,
+        decode(md5((:doc::jsonb)::text), 'hex')            AS nonce_calc
+    ),
+    last AS (
+      SELECT l.nonce
+        FROM {$this->schema}.{$this->table} l
+       WHERE l.{$this->uuidCol} = :uuid
+       ORDER BY l.iat DESC, {$this->versionCol} DESC
+       LIMIT 1
+    ),
+    ins AS (
+      INSERT INTO {$this->schema}.{$this->table} (ext_id, uuid, doc, meta, iat, sat)
+      SELECT c.ext_id, c.uuid, c.doc, c.meta, c.iat, c.sat
+        FROM candidate c
+       WHERE COALESCE((SELECT nonce FROM last), '\x'::bytea) IS DISTINCT FROM c.nonce_calc
+      RETURNING
+        {$this->uuidCol}    AS uuid,
+        {$this->versionCol} AS version,
+        iat,
+        encode(nonce, 'hex') AS nonce
+    )
+    SELECT uuid, version, iat, nonce
+      FROM ins
+    UNION ALL
+    SELECT t.{$this->uuidCol}    AS uuid,
+           t.{$this->versionCol} AS version,
+           t.iat,
+           encode(t.nonce, 'hex') AS nonce
+      FROM {$this->schema}.{$this->table} t
+     WHERE t.{$this->uuidCol} = :uuid
+       AND NOT EXISTS (SELECT 1 FROM ins)
+    ORDER BY iat DESC, version DESC
+    LIMIT 1;
+    ";
+
         $this->params = [
             ':ext'  => $extId,
             ':uuid' => $stable,
@@ -85,16 +104,19 @@ final class IngestVersioned extends Base
             ':meta' => $metaJson,
             ':sat'  => $sat,
         ];
+
         $this->stmt = $this->pdo->prepare($this->query);
-        foreach ($this->params as $k => $v) $this->stmt->bindValue($k, $v);
+        foreach ($this->params as $k => $v) { $this->stmt->bindValue($k, $v); }
         $this->stmt->execute();
-        $rowJson = $this->stmt->fetchColumn();
+
+        /** @var array{uuid:string,version:string,iat:string,nonce:string} $row */
+        $row = (array)$this->stmt->fetch(PDO::FETCH_ASSOC);
         $this->reset();
 
-        /** @var array{uuid:string,version:string,iat:string}|null $row */
-        $row = $rowJson ? json_decode($rowJson, true) : null;
-        return $row;
+        return $row ?: ['uuid' => $stable, 'version' => '', 'iat' => '', 'nonce' => ''];
     }
+
+
 
     /**
      * Ingest a RAW row, transform to INTERNAL, append to logged_doc, upsert into mutable_doc,
