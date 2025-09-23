@@ -38,7 +38,7 @@ use \PDO;
  * Table contract (ingest):
  * - PK (nonce, iat), doc, meta, ext_id, iat, sat
  */
-final class IngestLog extends Base
+final class IngestRawLog extends Base
 {
 
     public function __construct(PDO $pdo, string $table, ?string $schema = 'glued')

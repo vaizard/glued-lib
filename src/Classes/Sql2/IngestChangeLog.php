@@ -27,7 +27,7 @@ interface TransformerInterface
  * - iat/uat: bigint ms since epoch
  * - period: STORED, clamped
  */
-final class IngestVersioned extends Base
+final class IngestChangeLog extends Base
 {
     public function __construct(PDO $pdo, string $table, ?string $schema = 'glued')
     {

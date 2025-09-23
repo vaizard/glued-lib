@@ -10,34 +10,15 @@ use Rs\Json\Merge\Patch as JsonMergePatch;
 /*
 
 -- =========================
--- MUTABLE (upsert by uuid)
+-- (INTERNAL) DOC CHANGELOG
 -- =========================
+-- Append-only history of internal documents, partitioned by document UUID.
+-- Consecutive dedupe by content hash (ignoring 'uuid'): logs A→B→A, suppresses A→A→A.
+-- Used by DocState class for full audit trail and time-slice reads (iat/ms, optional dat; period from meta.nbf/exp).
+-- Also usable standalone via DocChangeLogRepo.
 
-DROP TABLE IF EXISTS glued.mutable_doc CASCADE;
-CREATE TABLE glued.mutable_doc (
-  uuid     uuid  GENERATED ALWAYS AS ((doc->>'uuid')::uuid) STORED NOT NULL,
-  version  uuid  DEFAULT uuidv7() NOT NULL,
-  doc      jsonb NOT NULL,
-  meta     jsonb NOT NULL DEFAULT '{}'::jsonb,
-  nonce    bytea GENERATED ALWAYS AS (decode(md5((doc - 'uuid')::text), 'hex')) STORED,
-  iat      bigint DEFAULT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint NOT NULL, -- inserted/issued at
-  uat      bigint DEFAULT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint NOT NULL, -- updated at (set in UPDATE)
-  dat      bigint,                                                                         -- deleted at (soft-delete)
-  sat      text,                                                                           -- raw source timestamp (as-is string)
-  PRIMARY KEY (uuid)
-);
-
-CREATE INDEX IF NOT EXISTS mutable_doc_iat_desc ON glued.mutable_doc (iat DESC);
-CREATE INDEX IF NOT EXISTS mutable_doc_uat_desc ON glued.mutable_doc (uat DESC);
-
-
-
--- =========================
--- LOGGED (append only)
--- =========================
-
-DROP TABLE IF EXISTS glued.logged_doc CASCADE;
-CREATE TABLE glued.logged_doc (
+DROP TABLE IF EXISTS logged_doc CASCADE;
+CREATE TABLE logged_doc (
   uuid     uuid  NOT NULL,
   version  uuid  DEFAULT uuidv7() NOT NULL,
   doc      jsonb NOT NULL,
@@ -62,16 +43,45 @@ CREATE TABLE glued.logged_doc (
 
 
 -- Fast “latest per uuid” and nonce access
-CREATE INDEX IF NOT EXISTS logged_doc_uuid_iat_ver_desc_inc ON glued.logged_doc (uuid, iat DESC, version DESC) INCLUDE (nonce, dat);
+CREATE INDEX IF NOT EXISTS logged_doc_uuid_iat_ver_desc_inc ON logged_doc (uuid, iat DESC, version DESC) INCLUDE (nonce, dat);
 -- Accelerates period @> :asof
-CREATE INDEX IF NOT EXISTS logged_doc_period_gist ON glued.logged_doc USING GIST (period);
+CREATE INDEX IF NOT EXISTS logged_doc_period_gist ON logged_doc USING GIST (period);
 
 
 -- =========================
--- EXTERNAL INGEST LOG (raw append log)
+-- (INTERNAL) DOC STATE
 -- =========================
-DROP TABLE IF EXISTS ingest_log CASCADE;
-CREATE TABLE ingest_log (
+-- One mutable row per document UUID (canonical current state).
+-- Idempotent upsert by UUID; optionally mirrors changes into DOCUMENT LOG.
+-- Soft-delete sets dat (ms) and may tombstone doc with {"_deleted": true}.
+-- Use with DocState class
+
+DROP TABLE IF EXISTS mutable_doc CASCADE;
+CREATE TABLE mutable_doc (
+  uuid     uuid  GENERATED ALWAYS AS ((doc->>'uuid')::uuid) STORED NOT NULL,
+  version  uuid  DEFAULT uuidv7() NOT NULL,
+  doc      jsonb NOT NULL,
+  meta     jsonb NOT NULL DEFAULT '{}'::jsonb,
+  nonce    bytea GENERATED ALWAYS AS (decode(md5((doc - 'uuid')::text), 'hex')) STORED,
+  iat      bigint DEFAULT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint NOT NULL, -- inserted/issued at
+  uat      bigint DEFAULT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint NOT NULL, -- updated at (set in UPDATE)
+  dat      bigint,                                                                         -- deleted at (soft-delete)
+  sat      text,                                                                           -- raw source timestamp (as-is string)
+  PRIMARY KEY (uuid)
+);
+
+CREATE INDEX IF NOT EXISTS mutable_doc_iat_desc ON mutable_doc (iat DESC);
+CREATE INDEX IF NOT EXISTS mutable_doc_uat_desc ON mutable_doc (uat DESC);
+
+-- =========================
+-- (EXTERNAL) INGEST RAW LOG
+-- =========================
+-- Append-only record of upstream payloads keyed by ext_id (no dedupe; every event is stored).
+-- For forensic replay and auditing of “as received” data (iat/ms; nonce = md5(doc::text)).
+-- Use with IngestRawLog class
+
+DROP TABLE IF EXISTS ingest_rawlog CASCADE;
+CREATE TABLE ingest_rawlog (
   ext_id   text NOT NULL,
   uuid     uuid DEFAULT gen_random_uuid() NOT NULL,  -- raw row id
   version  uuid DEFAULT uuidv7() NOT NULL,           -- time-sortable tie-break
@@ -82,27 +92,21 @@ CREATE TABLE ingest_log (
   uat      bigint GENERATED ALWAYS AS (iat) VIRTUAL NOT NULL,
   dat      bigint DEFAULT NULL,
   sat      text,
-  period   int8range GENERATED ALWAYS AS (
-             int8range(
-               COALESCE((meta->>'nbf')::bigint, iat),
-               GREATEST(
-                 COALESCE(LEAST(dat, (meta->>'exp')::bigint), dat, (meta->>'exp')::bigint),
-                 COALESCE((meta->>'nbf')::bigint, iat)
-               ),
-               '[)'
-             )
-           ) STORED,
   PRIMARY KEY (uuid)
 );
 
-CREATE INDEX ingest_log_ext_iat_ver_desc ON ingest_log (ext_id, iat DESC, version DESC);
-CREATE INDEX ingest_log_nonce_iat        ON ingest_log (nonce, iat);
+CREATE INDEX ingest_rawlog_ext_iat_ver_desc ON ingest_rawlog (ext_id, iat DESC, version DESC);
+CREATE INDEX ingest_rawlog_nonce_iat        ON ingest_rawlog (nonce, iat);
 
 
+-- =========================
+-- (EXTERNAL) INGEST CHANGELOG
+-- =========================
+-- Versioned state per upstream record; stream identity = stable UUID v5(source, ext_id).
+-- Consecutive dedupe by last nonce: logs A→B→A, suppresses A→A→A; iat/ms; period clamped from meta.nbf/exp/dat.
+-- Use for efficient “latest per ext_id” lookups and revert-aware change tracking.
+-- Use with IngestChangeLog class
 
--- ====================================================
--- VERSIONED EXTERNAL INGEST (stable v5 uuid per ext_id + vers)
--- ====================================================
 DROP TABLE IF EXISTS ingest_changelog CASCADE;
 CREATE TABLE ingest_changelog (
   ext_id   text NOT NULL,

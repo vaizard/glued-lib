@@ -15,7 +15,7 @@ use Rs\Json\Merge\Patch as JsonMergePatch;
  * Table contract (logged_doc):
  * - PK(version), uuid, doc, meta, iat, sat, dat?, virtual period
  */
-final class DocLog extends Base
+final class DocChangeLog extends Base
 {
     public function __construct(PDO $pdo, string $table, ?string $schema = 'glued')
     {
