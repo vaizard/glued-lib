@@ -18,11 +18,9 @@ use \PDO;
  * - uat            bigint   -- VIRTUAL: same as iat
  * - sat            text     -- raw source timestamp (free text)
  * - ext_id         text     -- upstream id (required)
- * - period         int8range(
- * *     COALESCE(meta->>'nbf'::bigint, iat),
- * *     GREATEST(COALESCE(LEAST(dat, exp), dat, exp), COALESCE(nbf, iat)),
- * *     '[)'
- * *   )
+ * - period         int8range VIRTUAL int8range(COALESCE(meta->>'nbf', iat), meta->>'exp', '[)')
+ *   (both nbf/exp read as BIGINT if present in meta)
+ *
  * Indexes:
  * - (ext_id, iat DESC, version DESC)
  * - (nonce, iat)
@@ -75,8 +73,7 @@ final class IngestAppend extends Base
 
 
     /**
-     * Append a raw ingest row (append-only, consecutive dedupe).
-     * Returns {uuid, version, iat, nonce}. No new row for consecutive duplicates.
+     * Append a raw ingest row (append-only), Unix time in **seconds** (DB default).
      *
      * @param array|object $doc   Raw payload to store.
      * @param string       $extId External identifier of the upstream record.
@@ -87,58 +84,20 @@ final class IngestAppend extends Base
      */
     public function log(array|object $doc, string $extId, array|object $meta = [], ?string $sat = null): array
     {
-        if ($extId === '') {
-            throw new \InvalidArgumentException('extId must be non-empty.');
-        }
-
         [$d, $m]  = $this->normalize($doc, $meta);
         $docJson  = json_encode($d, $this->jsonFlags);
         $metaJson = json_encode($m, $this->jsonFlags);
 
+        // Let the table defaults compute iat (seconds) and version (uuidv7)
         $this->query = "
-        WITH input AS (
-          SELECT :ext::text AS ext_id, :doc::jsonb AS doc, :meta::jsonb AS meta, :sat::text AS sat
-        ),
-        lock AS (
-          SELECT pg_advisory_xact_lock(hashtext((SELECT ext_id FROM input)))
-        ),
-        ts AS (
-          SELECT (EXTRACT(EPOCH FROM clock_timestamp())*1000)::bigint AS ms
-        ),
-        last AS (
-          SELECT l.nonce
-            FROM {$this->schema}.{$this->table} l
-           WHERE l.ext_id = (SELECT ext_id FROM input)
-           ORDER BY l.iat DESC, {$this->versionCol} DESC
-           LIMIT 1
-        ),
-        ins AS (
-          INSERT INTO {$this->schema}.{$this->table} (doc, meta, ext_id, iat, sat)
-          SELECT (SELECT doc  FROM input),
-                 (SELECT meta FROM input),
-                 (SELECT ext_id FROM input),
-                 (SELECT ms   FROM ts),
-                 (SELECT sat  FROM input)
-          WHERE COALESCE((SELECT nonce FROM last), '\x'::bytea)
-                IS DISTINCT FROM decode(md5(((SELECT doc FROM input))::text), 'hex')
-          RETURNING {$this->uuidCol} AS uuid,
-                    {$this->versionCol} AS version,
-                    iat,
-                    encode(nonce, 'hex') AS nonce
-        )
-        SELECT uuid, version, iat, nonce
-          FROM ins
-        UNION ALL
-        SELECT t.{$this->uuidCol} AS uuid,
-               t.{$this->versionCol} AS version,
-               t.iat,
-               encode(t.nonce, 'hex') AS nonce
-          FROM {$this->schema}.{$this->table} t
-         WHERE t.ext_id = :ext
-         ORDER BY iat DESC, {$this->versionCol} DESC
-         LIMIT 1
-    ";
-
+            INSERT INTO {$this->schema}.{$this->table} (doc, meta, ext_id, sat)
+            VALUES (:doc::jsonb, :meta::jsonb, :ext, :sat)
+            RETURNING
+                {$this->uuidCol}     AS uuid,
+                {$this->versionCol}  AS version,
+                iat,
+                encode(nonce, 'hex') AS nonce
+        ";
         $this->params = [
             ':doc'  => $docJson,
             ':meta' => $metaJson,
