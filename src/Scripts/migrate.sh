@@ -8,19 +8,20 @@ source "$DIR/loadenv.sh"
 # NOTE that double sourcing is needed
 # otherwise .env references won't be interpreted
 
-# Loop over both Mysql and Pgsql directories
 for dbtype in Mysql Pgsql; do
-  # Find non-empty directories within each specified path
-  for dir in $(find "./glued/Config/${dbtype}" -not -empty -type d); do
+  base="./glued/Config/${dbtype}"
+  [ -d "$base" ] || continue   # ← skip if the dir doesn't exist
 
-    # Set DATABASE_URL environment variable based on dbtype
-    if [ "${dbtype}" == "Mysql" ]; then export DATABASE_URL="${MYSQL_URL}"; fi
-    if [ "${dbtype}" == "Pgsql" ]; then export DATABASE_URL="${PGSQL_URL}"; fi
-
+  # iterate safely over dirs (handles spaces, avoids errors)
+  while IFS= read -r -d '' dir; do
+    case "$dbtype" in
+      Mysql) export DATABASE_URL="$MYSQL_URL" ;;
+      Pgsql) export DATABASE_URL="$PGSQL_URL" ;;
+    esac
     # Execute dbmate with the appropriate directory and schema file (convert dbtype to lowercase)
-    dbmate -d "${dir}" -s "${DATAPATH}/$(basename `pwd`)/schema-${dbtype,,}.sql" migrate
-  done
+    dbmate -d "$dir" -s "${DATAPATH}/$(basename "$(pwd)")/schema-${dbtype,,}.sql" migrate
+  done < <(find "$base" -type d -not -empty -print0)
 done
 
-echo "[DONE] $(basename $0) -----------------"
+echo "[DONE] $(basename "$0") -----------------"
 set +e
