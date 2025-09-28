@@ -209,7 +209,7 @@ abstract class Base
     public $stmt;
 
     /** @var string Schema name for database tables. */
-    protected string $schema = 'glued';
+    protected string $schema;
 
     /** @var string Table name for database queries. */
     protected string $table;
@@ -253,11 +253,11 @@ abstract class Base
     /** @var array Builder state: query parameters observability */
     public array $lastQueryParams = [];
 
-    public function __construct(PDO $pdo, string $table, ?string $schema = 'glued')
+    public function __construct(PDO $pdo, string $table, ?string $schema = null)
     {
         $this->pdo = $pdo;
         $this->table = $table;
-        if ($schema) $this->schema = $schema;
+        $this->schema = ($schema ?? ($_ENV['PGSQL_SCHEMA'] ?? getenv('PGSQL_SCHEMA'))) ?: 'glued';
     }
 
     /**

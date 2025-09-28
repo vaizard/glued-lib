@@ -56,12 +56,12 @@ abstract class GenericSql
     public array $params = [];
     public int $jsonEncodeOptions = JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_IGNORE;
 
-    public function __construct(PDO $pdo, string $table)
+    public function __construct(PDO $pdo, string $table, string $schema = null)
     {
         $this->pdo = $pdo;
         $this->table = $table;
+        $this->schema = $schema ?? ($_ENV['PGSQL_SCHEMA'] ?? getenv('PGSQL_SCHEMA') ?: 'glued');
         $this->selectModifier = "{$this->metaObject()} ||";
-        $this->schema = $settings['pgsql']['schema'] ?? ($_ENV['PGSQL_SCHEMA'] ?? getenv('PGSQL_SCHEMA') ?: 'glued');
     }
 
     /**
