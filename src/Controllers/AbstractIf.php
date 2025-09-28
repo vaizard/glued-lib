@@ -78,7 +78,7 @@ abstract class AbstractIf extends AbstractService
                     'updated_at', id.updated_at
                 ) || 
                 id.{$this->deployments->dataColumn} AS doc
-            FROM glued.if__deployments id 
+            FROM if__deployments id 
             WHERE id.uuid = :uuid;
         EOT;
         $stmt = $this->deployments->pdo->prepare($query);
