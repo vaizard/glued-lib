@@ -31,7 +31,7 @@ abstract class GenericSql
     public string $uuidColumn = 'uuid';
 
     /** @var string The schema name for database tables. */
-    public string $schema = 'glued';
+    public string $schema;
 
     /** @var string The table name for database queries. */
     public string $table;
@@ -61,6 +61,7 @@ abstract class GenericSql
         $this->pdo = $pdo;
         $this->table = $table;
         $this->selectModifier = "{$this->metaObject()} ||";
+        $this->schema = $settings['pgsql']['schema'] ?? ($_ENV['PGSQL_SCHEMA'] ?? getenv('PGSQL_SCHEMA') ?: 'glued');
     }
 
     /**
