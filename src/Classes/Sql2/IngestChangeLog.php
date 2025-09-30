@@ -29,7 +29,7 @@ interface TransformerInterface
  */
 final class IngestChangeLog extends Base
 {
-    public function __construct(PDO $pdo, string $table, ?string $schema = 'glued')
+    public function __construct(PDO $pdo, string $table, ?string $schema = null)
     {
         parent::__construct($pdo, $table, $schema);
     }

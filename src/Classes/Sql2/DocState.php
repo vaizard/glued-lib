@@ -23,8 +23,8 @@ final class DocState extends Base
     /** @var ?string Target history table (append-only) */
     private ?string $logTable;
 
-    public function __construct(PDO $pdo, string $table, ?string $logTable = null, ?string $schema = 'glued')
-    {
+    public function __construct(PDO $pdo, string $table, ?string $logTable = null, ?string $schema = null)
+    {;
         parent::__construct($pdo, $table, $schema);
         $this->logTable = $logTable;
     }
