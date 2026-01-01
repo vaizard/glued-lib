@@ -3,7 +3,7 @@
 declare(strict_types=1);
 namespace Glued\Lib\Classes\Sql2;
 
-use \PDO;
+use PDO;
 use Ramsey\Uuid\Uuid;
 use Rs\Json\Merge\Patch as JsonMergePatch;
 
@@ -126,7 +126,7 @@ CREATE TABLE ingest_changelog (
   meta     jsonb NOT NULL DEFAULT '{}'::jsonb,
   nonce    bytea GENERATED ALWAYS AS (decode(md5((doc::text)), 'hex')) STORED,
   iat      bigint DEFAULT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint NOT NULL, -- unix time (ms)
-  uat      bigint DEFAULT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint NOT NULL, -- unix time (ms)
+  uat      bigint GENERATED ALWAYS AS (iat) VIRTUAL NOT NULL,
   dat      bigint, -- unix time (ms)
   sat      text,   -- raw source at time
   period   int8range GENERATED ALWAYS AS (
@@ -153,6 +153,51 @@ CREATE INDEX IF NOT EXISTS icl_ext_uat_ver_desc ON ingest_changelog (ext_id, uat
 
 */
 
+/*
+
+Meta doc example
+
+{
+  "schemaVer": 3,
+
+  // Validity window for this INTERNAL record (optional).
+  // If absent: treat as "valid from iat, no expiry" (or your chosen default).
+  "nbf": 1700000000000,
+  "exp": 1709999999999,
+
+  // Actor who caused THIS internal version to exist.
+  // Only present for manual/local writes. Do NOT put actor into src[] items.
+  "actorId": "user-123",
+  "actorIp": "203.0.113.7",
+
+  // Interface identity (remote/client). Root-level applies to all src[] items unless overridden.
+  "ifName": "acord",                                   // human label for the remote/client/system
+  "ifUuid": "0f1b9a2e-8c6a-4f62-9c2a-3c9b0b9e6e2a",    // OUR UUID for the configured interface (stable, known by us)
+  "ifInstance": "tenant-42",                           // REMOTE-defined instance/tenant id (string; may be UUID)
+
+  // Transformer identity for reproducibility / reruns.
+  "transform": {
+    "name": "AcordPacksetTransformer",                 // class name or stable transformer id
+    "ver": "git:abc1234",                              // commit/tag/date; whatever you pin
+    "cfg": "sha256:..."                                // optional: hash of transform config/mapping tables
+  },
+
+  // Upstream inputs (provenance) that produced this INTERNAL doc.
+  // Always an array (supports N->1 merges). For 1->N splits, multiple INTERNAL docs can share the same src[0].
+  "src": [
+    {
+      "stream": "acord.packset",                       // upstream entity/table/collection name (human readable)
+      "extId": "82221090",                             // upstream key as seen by that stream
+      "extUuid": "6a52b0f0-3b9d-5c28-8d26-7a5f4b3c8f1e",// stable UUID for (if+stream+extId); usually UUIDv5 in app
+      "extVersion": "0197d3f2-8f6d-74c1-a3a2-9b2f3e1a4c7d", // version id of the ingested row (e.g. ingest_changelog.version UUIDv7)
+      "extIat": 1700000000123                          // ingest time (ms) of that extVersion
+    }
+  ]
+}
+
+
+
+ */
 
 /**
  * Utilities for stable UUID v5 derivation (stable per ext_id) and general helpers.
@@ -192,7 +237,7 @@ final class UuidTools
  *  Table contract (required columns):
  *  - {uuidCol}  UUID PRIMARY KEY
  *  - {docCol}   JSONB  -- primary payload
- *  - {metaCol}  JSONB  -- {schemaVer, nbf, exp, actorId, actorIp, sourceName, sourceUuid, ...}
+ *  - {metaCol}  JSONB  -- {schemaVer, nbf, exp, actorId, actorIp, ifInstance, ifUuid, ...}
  *  - iat/uat/dat bigint
  *  - sat TEXT
  *
@@ -382,6 +427,23 @@ abstract class Base
     }
 
     /**
+     * Normalize doc/meta (optionally forcing UUID) and JSON-encode both.
+     *
+     * @param array|object $doc
+     * @param array|object $meta
+     * @param string|null  $uuid Optional UUID to force into doc['uuid'].
+     * @return array{0:string,1:string,2:string} [uuid, docJson, metaJson]
+     */
+    protected function normalizeToJson(array|object $doc, array|object $meta = [], ?string $uuid = null): array
+    {
+        $uuid = $uuid ?? (string)((is_array($doc) ? ($doc['uuid'] ?? null) : ($doc->uuid ?? null)) ?? Uuid::uuid4());
+        [$d, $m] = $this->normalize($doc, $meta, $uuid);
+        $docJson  = json_encode($d, $this->jsonFlags);
+        $metaJson = json_encode($m, $this->jsonFlags);
+        return [$uuid, $docJson, $metaJson];
+    }
+
+    /**
      * Envelope select: doc || the system+meta columns for convenient reads.
      */
     protected function selectEnvelope(): string
@@ -417,7 +479,27 @@ abstract class Base
         return $row ? json_decode($row, true) : null;
     }
 
+    protected function fetchRawDoc(string $uuid): ?array
+    {
+        $this->query = "SELECT {$this->docCol} FROM {$this->schema}.{$this->table} WHERE {$this->uuidCol} = :u";
+        $this->stmt  = $this->pdo->prepare($this->query);
+        $this->stmt->bindValue(':u', $uuid);
+        $this->stmt->execute();
+        $row = $this->stmt->fetchColumn();
+        $this->reset();
+        return $row ? json_decode($row, true) : null;
+    }
 
+    protected function fetchRawMeta(string $uuid): ?array
+    {
+        $this->query = "SELECT {$this->metaCol} FROM {$this->schema}.{$this->table} WHERE {$this->uuidCol} = :u";
+        $this->stmt  = $this->pdo->prepare($this->query);
+        $this->stmt->bindValue(':u', $uuid);
+        $this->stmt->execute();
+        $row = $this->stmt->fetchColumn();
+        $this->reset();
+        return $row ? json_decode($row, true) : null;
+    }
 
     /**
      * Fetch many with chainable predicates (merged envelopes).

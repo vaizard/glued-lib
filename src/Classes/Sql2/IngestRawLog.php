@@ -3,7 +3,7 @@
 declare(strict_types=1);
 namespace Glued\Lib\Classes\Sql2;
 
-use \PDO;
+use PDO;
 
 /**
  * Raw ingest repository (append-only; as-received feed).
@@ -32,12 +32,7 @@ use \PDO;
  *     }
  *   }
  */
-/**
- * Raw ingest repository (append-only; as-received feed).
- *
- * Table contract (ingest):
- * - PK (nonce, iat), doc, meta, ext_id, iat, sat
- */
+
 final class IngestRawLog extends Base
 {
 
