@@ -112,7 +112,7 @@ final class IngestChangeLog extends Base
             :meta::jsonb                                        AS meta,
             :sat                                                AS sat,
             (EXTRACT(EPOCH FROM clock_timestamp())*1000)::bigint AS iat,
-            decode(md5((:doc::jsonb - 'uuid')::text), 'hex')     AS nonce_calc
+            decode(md5((:doc::jsonb)::text), 'hex')     AS nonce_calc
           FROM lock
         ),
         last AS (

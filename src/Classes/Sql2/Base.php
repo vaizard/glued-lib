@@ -521,6 +521,23 @@ abstract class Base
         return $this->stmt->fetchAll(PDO::FETCH_FUNC, fn(string $json) => json_decode($json, true));
     }
 
+    /**
+     * @param list<list<string|int>> $dropPaths
+     */
+    protected function dropDocPaths(array $doc, array $dropPaths = []): array
+    {
+        foreach ($dropPaths as $path) {
+            if ($path === []) continue;
+            $ref =& $doc;
+            $last = array_pop($path);
+            foreach ($path as $seg) {
+                if (!is_array($ref) || !array_key_exists($seg, $ref)) { continue 2; }
+                $ref =& $ref[$seg];
+            }
+            if (is_array($ref) && array_key_exists($last, $ref)) { unset($ref[$last]); }
+        }
+        return $doc;
+    }
 
 }
 
