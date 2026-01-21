@@ -69,7 +69,6 @@ final class IngestChangeLog extends Base
     {
         parent::__construct($pdo, $table, $schema);
     }
-    
 
     /*
      * $raw = $ingest->appendIfChanged($doc, $extId, $ifName, $meta, $sat, stream: 'acord.packset');
@@ -106,13 +105,13 @@ final class IngestChangeLog extends Base
         ),
         candidate AS (
           SELECT
-            :uuid::uuid                                         AS uuid,
-            :ext                                                AS ext_id,
-            :doc::jsonb                                         AS doc,
-            :meta::jsonb                                        AS meta,
-            :sat                                                AS sat,
+            :uuid::uuid                                          AS uuid,
+            :ext                                                 AS ext_id,
+            :doc::jsonb                                          AS doc,
+            :meta::jsonb                                         AS meta,
+            :sat                                                 AS sat,
             (EXTRACT(EPOCH FROM clock_timestamp())*1000)::bigint AS iat,
-            decode(md5((:doc::jsonb)::text), 'hex')     AS nonce_calc
+            decode(md5((:doc::jsonb)::text), 'hex')              AS nonce_calc
           FROM lock
         ),
         last AS (
@@ -181,6 +180,7 @@ final class IngestChangeLog extends Base
      *  - transformVer (string, optional): transformer version tag/commit (default: env APP_VERSION/GIT_SHA/"")
      *  - transformCfg (string, optional): hash of transformer mapping/config
      *  - updateMutable (bool, default true)
+     *  - writeLog (bool, default true): if false, SKIP internal changelog write (mutable-only)
      *  - logTable (string, default "logged_doc")
      *  - stateTable (string, default "mutable_doc")
      */
@@ -214,6 +214,7 @@ final class IngestChangeLog extends Base
         $transformCfg  = $options['transformCfg'] ?? null;
 
         $updateMutable = (bool)($options['updateMutable'] ?? true);
+        $writeLog      = (bool)($options['writeLog'] ?? true);
         $logTable      = (string)($options['logTable'] ?? 'logged_doc');
         $stateTable    = (string)($options['stateTable'] ?? 'mutable_doc');
 
@@ -233,7 +234,8 @@ final class IngestChangeLog extends Base
                 ? $transform($rawDocArr, $rawMetaArr, $extId)
                 : $transform->transform($rawDocArr, $rawMetaArr, $extId);
 
-            $log   = new DocChangeLog($pdo, $logTable, $this->schema);
+            $log = null;
+            if ($writeLog) { $log = new DocChangeLog($pdo, $logTable, $this->schema); }
             $state = new DocState($pdo, $stateTable, null, $this->schema); // no implicit logging here
 
             $out = [];
@@ -277,14 +279,19 @@ final class IngestChangeLog extends Base
                 $intSat = $it['sat'] ?? $sat;
 
                 // 3) Append internal history (consecutive dedupe)
-                $verRow = $log->appendIfChanged($itDoc, $baked, $intSat);
+                $version = '';
+                if ($writeLog) {
+                    /** @var DocChangeLog $log */
+                    $verRow = $log->appendIfChanged($itDoc, $baked, $intSat);
+                    $version = (string)($verRow['version'] ?? '');
+                }
 
                 // 4) Upsert current state (idempotent; no log here)
                 if ($updateMutable) {
                     $state->put($itDoc, $baked, $intSat);
                 }
 
-                $out[] = ['uuid' => $intUuid, 'version' => (string)$verRow['version']];
+                $out[] = ['uuid' => $intUuid, 'version' => $version];
             }
 
             $pdo->commit();
