@@ -117,7 +117,7 @@ final class IngestChangeLog extends Base
         last AS (
           SELECT l.nonce
             FROM {$this->schema}.{$this->table} l
-           WHERE l.{$this->uuidCol} = :uuid
+           WHERE l.{$this->uuidCol} = :uuid::uuid
            ORDER BY l.iat DESC, {$this->versionCol} DESC
            LIMIT 1
         ),
@@ -140,7 +140,7 @@ final class IngestChangeLog extends Base
                t.iat,
                encode(t.nonce, 'hex') AS nonce
           FROM {$this->schema}.{$this->table} t
-         WHERE t.{$this->uuidCol} = :uuid
+         WHERE t.{$this->uuidCol} = :uuid::uuid
            AND NOT EXISTS (SELECT 1 FROM ins)
         ORDER BY iat DESC, version DESC
         LIMIT 1;
