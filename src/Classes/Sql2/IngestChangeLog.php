@@ -6,15 +6,23 @@ namespace Glued\Lib\Classes\Sql2;
 use PDO;
 
 /**
- * Return one or more internal records for a given raw doc+meta.
+ * Transform one RAW upstream document (+ meta) into one or more INTERNAL records.
  *
- * Each yielded item MUST contain 'doc' (array).
- * It MAY contain:
- *   - 'uuid' (string): internal UUID (stable strongly preferred)
- *   - 'kind' (string) + 'key' (string): used to derive stable internal UUID if 'uuid' missing
- *   - 'meta' (array)
- *   - 'sat' (?string)
- *   - 'stream' (string): overrides default upstream stream for provenance
+ * Contract:
+ * - Each yielded item MUST contain:
+ *     - 'doc' (array)
+ *
+ * - It MAY contain:
+ *     - 'uuid' (string): stable INTERNAL UUID (preferred)
+ *       OR:
+ *     - 'kind' (string) + 'key' (string): used to derive a stable INTERNAL UUID if 'uuid' missing
+ *     - 'meta' (array): additional INTERNAL meta to merge/bake (no actor keys are invented by the pipeline)
+ *     - 'sat' (?string): effective "source at time" override for that internal item
+ *     - 'stream' (string): upstream entity/table name for provenance (stored as meta.src[].stream)
+ *
+ * Notes:
+ * - "stream" in this file always means the UPSTREAM entity/table name (semantic provenance).
+ * - Identity (UUID) concerns are handled separately by the ingest pipeline via UUID namespacing.
  *
  * @return iterable<int, array{
  *   doc: array,
@@ -75,12 +83,24 @@ final class IngestChangeLog extends Base
      */
 
     /**
-     * Append a versioned ingest row (consecutive dedupe, with per-uuid xact advisory lock).
+     * Append a versioned RAW ingest row (consecutive dedupe, per-uuid xact advisory lock).
      *
-     * IMPORTANT: extUuid stability must include upstream "stream" (entity/table) to avoid collisions
-     * when different upstream streams reuse the same extId inside the same ingest_changelog table.
+     * Terminology:
+     * - $stream: upstream entity/table name (semantic provenance meaning in this class).
+     * - $uuidScope: OPTIONAL identity-only discriminator used ONLY to namespace extUuid.
+     *     Default behavior: if $uuidScope is empty, $stream is used.
      *
-     * NOTE: We force doc.uuid := extUuid to avoid volatile upstream 'uuid' fields causing nonce churn.
+     * Why $uuidScope exists:
+     * - Sometimes you want extUuid to be stable for something *more specific* than (ifName, stream, extId),
+     *   e.g. different upstream endpoints feeding the same stream while sharing extId ranges.
+     * - In that case, you keep semantic provenance "stream" intact, and provide a separate uuidScope.
+     *
+     * IMPORTANT:
+     * - extUuid stability should normally include the upstream stream (entity/table) to avoid collisions
+     *   when different streams reuse the same extId inside the same ingest_changelog table.
+     *
+     * NOTE:
+     * - We force doc.uuid := extUuid to avoid volatile upstream 'uuid' fields causing nonce churn.
      *
      * @return array{uuid:string,version:string,iat:string,nonce:string}
      */
@@ -90,12 +110,19 @@ final class IngestChangeLog extends Base
         string $ifName,
         array|object $meta = [],
         ?string $sat = null,
-        ?string $stream = null
+        ?string $stream = null,
+        ?string $uuidScope = null
     ): array {
+        $stream = $stream !== null ? trim($stream) : '';
+        $uuidScope = $uuidScope !== null ? trim($uuidScope) : '';
 
-        // Fold stream into the namespace key used for stable UUIDv5, force it to doc.uuid (prevents upstream random uuid fields from breaking dedupe).
-        $stream    = $stream !== null ? trim($stream) : '';
-        $sourceKey = $stream !== '' ? ($ifName . ':' . $stream) : $ifName;
+        // Identity-only scope defaults to semantic stream.
+        $idScope = $uuidScope !== '' ? $uuidScope : $stream;
+
+        // Fold stream into the namespace key used for stable UUIDv5, force it to
+        // doc.uuid (prevents upstream random uuid fields from breaking dedupe).
+        $sourceKey = $idScope !== '' ? ($ifName . ':' . $idScope) : $ifName;
+
         $stable = UuidTools::stableForSource($this->table, $sourceKey, $extId);
         [$uuid, $docJson, $metaJson] = $this->normalizeToJson($doc, $meta, $stable);
 
@@ -170,11 +197,25 @@ final class IngestChangeLog extends Base
     /**
      * Ingest RAW, transform to INTERNAL, append to logged_doc, upsert into mutable_doc.
      *
+     * Stream semantics:
+     * - 'stream' ALWAYS means the UPSTREAM entity/table name (e.g. "acord.packset").
+     *
+     * RAW identity vs provenance:
+     * - RAW UUID stability needs a discriminator; by default we use 'stream' as that discriminator.
+     * - If you need RAW UUIDs to fork beyond (ifName, stream, extId), provide 'rawUuidScope'
+     *   (identity-only). Provenance still records 'stream' as the upstream entity/table name.
+     *
      * Options:
      *  - ifUuid (string, REQUIRED): our UUID for the interface config
      *  - ifInstance (string, optional): remote-defined instance/tenant id (string)
-     *  - stream (string, REQUIRED): default upstream stream name (e.g. "acord.packset")
-     *  - rawStream (string, optional): upstream stream name for RAW ingest uuid namespacing
+     *
+     *  - stream (string, REQUIRED): upstream entity/table name (e.g. "acord.packset")
+     *
+     *  - rawUuidScope (string, optional): identity-only discriminator for RAW extUuid namespacing.
+     *      Default: stream
+     *      Use when RAW identities must be partitioned more finely than stream.
+     *    Deprecated alias: rawStream (treated as rawUuidScope)
+     *
      *  - schemaVer (int, optional): internal schema version (default 1)
      *  - transformName (string, optional): transformer identifier (default: class name / "callable")
      *  - transformVer (string, optional): transformer version tag/commit (default: env APP_VERSION/GIT_SHA/"")
@@ -202,11 +243,18 @@ final class IngestChangeLog extends Base
 
         $ifInstance = (string)($options['ifInstance'] ?? '');
 
-        $defaultStream = (string)($options['stream'] ?? '');
-        if ($defaultStream === '') {
+        $stream = (string)($options['stream'] ?? '');
+        $stream = trim($stream);
+        if ($stream === '') {
             throw new \InvalidArgumentException('transformToInternal() requires $options["stream"] (upstream entity/table name).');
         }
-        $rawStream = (string)($options['rawStream'] ?? $defaultStream);
+
+        // Identity-only discriminator for RAW UUID namespacing (renamed from rawStream).
+        $rawUuidScope = (string)($options['rawUuidScope'] ?? ($options['rawStream'] ?? ''));
+        $rawUuidScope = trim($rawUuidScope);
+        if ($rawUuidScope === '') {
+            $rawUuidScope = $stream;
+        }
 
         $schemaVer     = (int)($options['schemaVer'] ?? 1);
         $transformName = (string)($options['transformName'] ?? $this->inferTransformName($transform));
@@ -221,7 +269,16 @@ final class IngestChangeLog extends Base
         $pdo->beginTransaction();
         try {
             // 1) RAW ingest append (or latest if duplicate)
-            $rawRow = $this->appendIfChanged($rawDoc, $extId, $ifName, $rawMeta, $sat, $rawStream);
+            $rawRow = $this->appendIfChanged(
+                $rawDoc,
+                $extId,
+                $ifName,
+                $rawMeta,
+                $sat,
+                stream: $stream,
+                uuidScope: $rawUuidScope
+            );
+
             $extUuid    = (string)$rawRow['uuid'];
             $extVersion = (string)$rawRow['version'];
             $extIat     = (string)$rawRow['iat'];
@@ -257,7 +314,8 @@ final class IngestChangeLog extends Base
                 }
                 $itDoc['uuid'] = $intUuid;
 
-                $itemStream = (string)($it['stream'] ?? $defaultStream);
+                // Upstream provenance stream (entity/table) for this internal item.
+                $itemStream = (string)($it['stream'] ?? $stream);
 
                 // 2b) Bake meta (keeping root keys schemaVer/nbf/exp/actor* intact; no actor keys invented here)
                 $baked = $this->bakeInternalMeta(
@@ -314,6 +372,10 @@ final class IngestChangeLog extends Base
     /**
      * Bake the agreed meta schema into the existing meta (no actor keys are invented here).
      * Root keys (schemaVer/nbf/exp/actor*) are preserved.
+     *
+     * Provenance:
+     * - Adds/merges meta.src[] items describing upstream inputs that led to this internal state.
+     * - meta.src[].stream always refers to the upstream entity/table name.
      */
     private function bakeInternalMeta(
         array $meta,
@@ -360,7 +422,7 @@ final class IngestChangeLog extends Base
         $src = $meta['src'] ?? [];
         if (!is_array($src)) { $src = []; }
 
-        // dedupe by (extUuid, extVersion, stream)
+        // Dedupe by (extUuid, extVersion, stream)
         $seen = [];
         foreach ($src as $s) {
             if (!is_array($s)) { continue; }
