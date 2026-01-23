@@ -100,7 +100,8 @@ final class IngestChangeLog extends Base
      *   when different streams reuse the same extId inside the same ingest_changelog table.
      *
      * NOTE:
-     * - We force doc.uuid := extUuid to avoid volatile upstream 'uuid' fields causing nonce churn.
+     * - We force doc.uuid := extUuid inside normalizeToJson() to avoid volatile upstream 'uuid' fields
+     *   causing nonce churn.
      *
      * @return array{uuid:string,version:string,iat:string,nonce:string}
      */
@@ -119,8 +120,8 @@ final class IngestChangeLog extends Base
         // Identity-only scope defaults to semantic stream.
         $idScope = $uuidScope !== '' ? $uuidScope : $stream;
 
-        // Fold stream into the namespace key used for stable UUIDv5, force it to
-        // doc.uuid (prevents upstream random uuid fields from breaking dedupe).
+        // Fold identity discriminator (idScope) into the namespace key used for stable UUIDv5.
+        // normalizeToJson() forces it to doc.uuid (prevents upstream random uuid fields from breaking dedupe).
         $sourceKey = $idScope !== '' ? ($ifName . ':' . $idScope) : $ifName;
 
         $stable = UuidTools::stableForSource($this->table, $sourceKey, $extId);
@@ -195,35 +196,42 @@ final class IngestChangeLog extends Base
     }
 
     /**
-     * Ingest RAW, transform to INTERNAL, append to logged_doc, upsert into mutable_doc.
+     * Ingest RAW, transform to INTERNAL, optionally:
+     * - append INTERNAL changelog (log table),
+     * - upsert INTERNAL mutable state (state table).
      *
      * Stream semantics:
      * - 'stream' ALWAYS means the UPSTREAM entity/table name (e.g. "acord.packset").
      *
      * RAW identity vs provenance:
-     * - RAW UUID stability needs a discriminator; by default we use 'stream' as that discriminator.
-     * - If you need RAW UUIDs to fork beyond (ifName, stream, extId), provide 'rawUuidScope'
-     *   (identity-only). Provenance still records 'stream' as the upstream entity/table name.
+     * - RAW extUuid is stable per (ifName, discriminator, extId), where discriminator defaults to 'stream'.
+     * - If you need RAW extUuid to fork beyond (ifName, stream, extId), provide 'rawUuidScope' (identity-only).
+     *   Provenance still records 'stream' as the upstream entity/table name.
      *
-     * Options:
-     *  - ifUuid (string, REQUIRED): our UUID for the interface config
-     *  - ifInstance (string, optional): remote-defined instance/tenant id (string)
+     * Options (explicit routing; log/state required):
+     * - ifUuid (string, REQUIRED): UUID of the interface configuration (identity discriminator for internal uuids)
+     * - ifInstance (string, optional): remote-defined instance/tenant id
      *
-     *  - stream (string, REQUIRED): upstream entity/table name (e.g. "acord.packset")
+     * - stream (string, REQUIRED): upstream entity/table name (provenance)
+     * - rawUuidScope (string, optional): identity-only discriminator for RAW extUuid namespacing (default: stream)
      *
-     *  - rawUuidScope (string, optional): identity-only discriminator for RAW extUuid namespacing.
-     *      Default: stream
-     *      Use when RAW identities must be partitioned more finely than stream.
-     *    Deprecated alias: rawStream (treated as rawUuidScope)
+     * - schemaVer (int, optional): internal schema version (default 1)
+     * - transformName (string, optional): transformer identifier (default: class name / "callable")
+     * - transformVer (string, optional): transformer version tag (e.g. git sha); default: env GIT_SHA
+     * - transformCfg (string, optional): hash of transformer mapping/config
      *
-     *  - schemaVer (int, optional): internal schema version (default 1)
-     *  - transformName (string, optional): transformer identifier (default: class name / "callable")
-     *  - transformVer (string, optional): transformer version tag/commit (default: env APP_VERSION/GIT_SHA/"")
-     *  - transformCfg (string, optional): hash of transformer mapping/config
-     *  - updateMutable (bool, default true)
-     *  - writeLog (bool, default true): if false, SKIP internal changelog write (mutable-only)
-     *  - logTable (string, default "logged_doc")
-     *  - stateTable (string, default "mutable_doc")
+     * - log (string|false, REQUIRED):
+     *     - string: write INTERNAL changelog to this table
+     *     - false: skip INTERNAL changelog
+     *
+     * - state (string|false, REQUIRED):
+     *     - string: upsert INTERNAL mutable state to this table
+     *     - false: skip INTERNAL mutable state
+     *
+     * @return array{
+     *   raw: array{uuid:string,version:string,iat:string,nonce:string},
+     *   internal: list<array{uuid:string,version:string}>
+     * }
      */
     public function transformToInternal(
         array|object $rawDoc,
@@ -236,35 +244,31 @@ final class IngestChangeLog extends Base
     ): array {
         $pdo = $this->pdo;
 
-        $ifUuid = (string)($options['ifUuid'] ?? '');
+        $ifUuid = trim((string)($options['ifUuid'] ?? ''));
         if ($ifUuid === '') {
             throw new \InvalidArgumentException('transformToInternal() requires $options["ifUuid"].');
         }
 
-        $ifInstance = (string)($options['ifInstance'] ?? '');
+        $ifInstance = trim((string)($options['ifInstance'] ?? ''));
 
-        $stream = (string)($options['stream'] ?? '');
-        $stream = trim($stream);
+        $stream = trim((string)($options['stream'] ?? ''));
         if ($stream === '') {
             throw new \InvalidArgumentException('transformToInternal() requires $options["stream"] (upstream entity/table name).');
         }
 
-        // Identity-only discriminator for RAW UUID namespacing (renamed from rawStream).
-        $rawUuidScope = (string)($options['rawUuidScope'] ?? ($options['rawStream'] ?? ''));
-        $rawUuidScope = trim($rawUuidScope);
+        $rawUuidScope = trim((string)($options['rawUuidScope'] ?? ''));
         if ($rawUuidScope === '') {
             $rawUuidScope = $stream;
         }
 
+        $gitSha        = getenv('GIT_SHA');
         $schemaVer     = (int)($options['schemaVer'] ?? 1);
         $transformName = (string)($options['transformName'] ?? $this->inferTransformName($transform));
-        $transformVer  = (string)($options['transformVer'] ?? (getenv('APP_VERSION') ?: getenv('GIT_SHA') ?: ''));
+        $transformVer  = trim((string)($options['transformVer'] ?? ($gitSha !== false ? $gitSha : '')));
         $transformCfg  = $options['transformCfg'] ?? null;
 
-        $updateMutable = (bool)($options['updateMutable'] ?? true);
-        $writeLog      = (bool)($options['writeLog'] ?? true);
-        $logTable      = (string)($options['logTable'] ?? 'logged_doc');
-        $stateTable    = (string)($options['stateTable'] ?? 'mutable_doc');
+        [$logEnabled, $logTable]     = self::resolveDestTable($options, 'log');
+        [$stateEnabled, $stateTable] = self::resolveDestTable($options, 'state');
 
         $pdo->beginTransaction();
         try {
@@ -292,8 +296,14 @@ final class IngestChangeLog extends Base
                 : $transform->transform($rawDocArr, $rawMetaArr, $extId);
 
             $log = null;
-            if ($writeLog) { $log = new DocChangeLog($pdo, $logTable, $this->schema); }
-            $state = new DocState($pdo, $stateTable, null, $this->schema); // no implicit logging here
+            if ($logEnabled) {
+                $log = new DocChangeLog($pdo, $logTable, $this->schema);
+            }
+
+            $state = null;
+            if ($stateEnabled) {
+                $state = new DocState($pdo, $stateTable, null, $this->schema); // no implicit logging here
+            }
 
             $out = [];
             foreach ($items as $it) {
@@ -306,9 +316,7 @@ final class IngestChangeLog extends Base
                     $kind = (string)($it['kind'] ?? '');
                     $key  = (string)($it['key']  ?? '');
                     if ($kind === '' || $key === '') {
-                        throw new \LogicException(
-                            'Transformer must provide either "uuid" or ("kind" + "key") for stable idempotency.'
-                        );
+                        throw new \LogicException('Transformer must provide either "uuid" or ("kind" + "key") for stable idempotency.');
                     }
                     $intUuid = UuidTools::stableForSource("internal:$kind", $ifUuid, $key);
                 }
@@ -338,14 +346,15 @@ final class IngestChangeLog extends Base
 
                 // 3) Append internal history (consecutive dedupe)
                 $version = '';
-                if ($writeLog) {
+                if ($logEnabled) {
                     /** @var DocChangeLog $log */
                     $verRow = $log->appendIfChanged($itDoc, $baked, $intSat);
                     $version = (string)($verRow['version'] ?? '');
                 }
 
                 // 4) Upsert current state (idempotent; no log here)
-                if ($updateMutable) {
+                if ($stateEnabled) {
+                    /** @var DocState $state */
                     $state->put($itDoc, $baked, $intSat);
                 }
 
@@ -370,7 +379,7 @@ final class IngestChangeLog extends Base
     }
 
     /**
-     * Bake the agreed meta schema into the existing meta (no actor keys are invented here).
+     * Bake the agreed meta schema into the existing meta (no actor keys invented here).
      * Root keys (schemaVer/nbf/exp/actor*) are preserved.
      *
      * Provenance:
@@ -437,4 +446,32 @@ final class IngestChangeLog extends Base
         $meta['src'] = array_values($src);
         return $meta;
     }
+
+    /**
+     * @return array{0:bool,1:string} [enabled, tableName]
+     */
+    private static function resolveDestTable(array $options, string $key): array
+    {
+        if (!array_key_exists($key, $options)) {
+            throw new \InvalidArgumentException(sprintf('transformToInternal() requires option "%s" (table name|string) or false.', $key));
+        }
+
+        $v = $options[$key];
+
+        if ($v === false) {
+            return [false, ''];
+        }
+
+        if (!is_string($v)) {
+            throw new \InvalidArgumentException(sprintf('Option "%s" must be a table name (string) or false.', $key));
+        }
+
+        $t = trim($v);
+        if ($t === '') {
+            throw new \InvalidArgumentException(sprintf('Option "%s" must be a non-empty table name or false.', $key));
+        }
+
+        return [true, $t];
+    }
+
 }
