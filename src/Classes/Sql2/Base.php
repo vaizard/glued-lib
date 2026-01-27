@@ -244,16 +244,18 @@ final class UuidTools
  *  - sat TEXT
  *
  *  Envelope read model:
- *    SELECT doc || jsonb_build_object('meta', meta, 'iat', iat, 'uat', uat, 'dat', dat, 'sat', sat)
- *    -- keys on the right overwrite same keys in `doc`.
+ *    SELECT doc || jsonb_build_object(
+ *      '_meta', meta || jsonb_build_object('uuid', uuid::text, 'version', version::text, 'iat', iat, 'uat', uat, 'dat', dat, 'sat', sat, 'nonce', encode(nonce,'hex'))
+ *    )
+ *    -- keys on the right overwrite same keys in `meta`.
  */
 abstract class Base
 {
-    /** @var \PDO PDO instance for database connection. */
-    public $pdo;
+    /** @var PDO PDO instance for database connection. */
+    public PDO $pdo;
 
     /** @var \PDOStatement PDOStatement instance for database queries. */
-    public $stmt;
+    public \PDOStatement $stmt;
 
     /** @var string Schema name for database tables. */
     protected string $schema;
@@ -265,7 +267,7 @@ abstract class Base
     protected string $uuidCol = 'uuid';
 
     /** @var string Document version UUID column. */
-    protected string  $versionCol = 'version';
+    protected string $versionCol = 'version';
 
     /** @var string JSONB document (primary payload). */
     protected string $docCol  = 'doc';
@@ -413,49 +415,21 @@ abstract class Base
     }
 
     /**
-     * Normalize doc/meta, ensuring UUID in doc if provided.
+     * Envelope select: doc || system columns + `_meta` (stored meta).
      *
-     * @param array|object $doc
-     * @param array|object $meta
-     * @param string|null  $forceUuid  If non-null, set doc['uuid']=forceUuid
-     * @return array [array $doc, array $meta]
-     */
-    protected function normalize(array|object $doc, array|object $meta = [], ?string $forceUuid = null): array
-    {
-        $d = (array)$doc;
-        if ($forceUuid !== null) $d['uuid'] = $forceUuid;
-        $m = (array)$meta;
-        return [$d, $m];
-    }
-
-    /**
-     * Normalize doc/meta (optionally forcing UUID) and JSON-encode both.
-     *
-     * @param array|object $doc
-     * @param array|object $meta
-     * @param string|null  $uuid Optional UUID to force into doc['uuid'].
-     * @return array{0:string,1:string,2:string} [uuid, docJson, metaJson]
-     */
-    protected function normalizeToJson(array|object $doc, array|object $meta = [], ?string $uuid = null): array
-    {
-        $uuid = $uuid ?? (string)((is_array($doc) ? ($doc['uuid'] ?? null) : ($doc->uuid ?? null)) ?? Uuid::uuid4());
-        [$d, $m] = $this->normalize($doc, $meta, $uuid);
-        $docJson  = json_encode($d, $this->jsonFlags);
-        $metaJson = json_encode($m, $this->jsonFlags);
-        return [$uuid, $docJson, $metaJson];
-    }
-
-    /**
-     * Envelope select: doc || the system+meta columns for convenient reads.
+     * - Root keys (iat/uat/dat/sat/version/nonce) are system fields and may overwrite doc keys if present.
+     * - `_meta` holds the stored meta JSONB verbatim (provenance, validity window, etc.).
+     * - UpstreamJournal may override this to avoid collisions with raw payload fields.
      */
     protected function selectEnvelope(): string
     {
         return "{$this->selectModifier} {$this->docCol} || jsonb_build_object(
-            'meta', {$this->metaCol},
+            '_meta', {$this->metaCol},
             'iat', iat,
             'uat', uat,
             'sat', sat,
-            'version', version,
+            'dat', dat,
+            'version', {$this->versionCol},
             'nonce', encode(nonce, 'hex')
         )";
     }
