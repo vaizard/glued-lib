@@ -6,9 +6,9 @@ namespace Glued\Lib\Classes\Sql2;
 use PDO;
 
 /**
- * Raw ingest repository (append-only; as-received feed).
+ * Raw upstream journal (append-only; as-received feed).
  *
- * Table contract (glued.ingest_log):
+ * Table contract (glued.upstream_journal):
  * - {$uuidCol}     uuid     DEFAULT gen_random_uuid()
  * - {$versionCol}  uuid     DEFAULT uuidv7()               -- PK(version)
  * - {$docCol}      jsonb    -- raw payload
@@ -28,20 +28,16 @@ use PDO;
  * Envelope (selectEnvelope):
  *   doc || {
  *     "_meta": meta || {
- *        internalUuid, internalVersion, iat, uat, sat, nonce(hex)
+ *        journalUuid, journalVersion, iat, uat, sat, nonce(hex)
  *     }
  *   }
  */
-
-final class IngestRawLog extends Base
+final class UpstreamJournal extends Base
 {
-
     public function __construct(PDO $pdo, string $table, ?string $schema = null)
     {
         parent::__construct($pdo, $table, $schema);
     }
-
-
 
     /**
      * Build the read envelope for ingest rows.
@@ -54,8 +50,8 @@ final class IngestRawLog extends Base
             || jsonb_build_object(
                 '_meta', {$this->metaCol}
                     || jsonb_build_object(
-                        'internalUuid', {$this->uuidCol}::text,
-                        'internalVersion', {$this->versionCol}::text,
+                        'journalUuid', {$this->uuidCol}::text,
+                        'journalVersion', {$this->versionCol}::text,
                         'iat', iat,
                         'uat', uat,
                         'sat', sat,
@@ -64,8 +60,6 @@ final class IngestRawLog extends Base
             )
         )";
     }
-
-
 
     /**
      * Append a raw ingest row (append-only), Unix time in **seconds** (DB default).
@@ -109,6 +103,4 @@ final class IngestRawLog extends Base
         $this->reset();
         return $row ?: ['uuid'=>'', 'version'=>'', 'iat'=>'', 'nonce'=>''];
     }
-
 }
-
