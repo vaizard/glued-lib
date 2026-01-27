@@ -17,7 +17,7 @@ namespace Glued\Lib\Classes\Sql2;
  * - 'kind' should be a small fixed vocabulary (e.g. "packset", "instrument", "customer", "order").
  * - 'key' should be stable business identity inside that kind (extId, compound key, etc.).
  */
-final class ExampleTransformer implements TransformerInterface
+final class ExampleTransformer implements UpstreamTransformer
 {
     public function transform(array $rawDoc, array $rawMeta, ?string $extId = null): iterable
     {
