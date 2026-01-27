@@ -34,7 +34,7 @@ use PDO;
  *   stream?: string
  * }>
  */
-interface TransformerInterface
+interface UpstreamTransformer
 {
     public function transform(array $rawDoc, array $rawMeta, ?string $extId = null): iterable;
 }
@@ -42,7 +42,7 @@ interface TransformerInterface
 /**
  * External ingest (append-only, stable uuid per ext_id via UUID v5).
  *
- * Table contract (ingest_changelog):
+ * Table contract (upstream_changelog):
  * - PK (uuid, version), stable uuid v5(ext_id), NON-UNIQUE (uuid, nonce)  ← consecutive dedupe in SQL
  * - iat/uat: bigint ms since epoch
  * - period: generated, clamped
@@ -71,7 +71,7 @@ interface TransformerInterface
  * - Store upstream provenance in internal meta (ext_uuid, ext_version, stream, sat, transformer version),
  *   so we can audit "what input created this internal state" without coupling identifiers.
  */
-final class IngestChangeLog extends Base
+final class UpstreamChangelog extends Base
 {
     public function __construct(PDO $pdo, string $table, ?string $schema = null)
     {
@@ -79,7 +79,7 @@ final class IngestChangeLog extends Base
     }
 
     /*
-     * $raw = $ingest->appendIfChanged($doc, $extId, $ifName, $meta, $sat, stream: 'acord.packset');
+     * $raw = $upstream->appendIfChanged($doc, $extId, $ifName, $meta, $sat, stream: 'acord.packset');
      */
 
     /**
@@ -97,7 +97,7 @@ final class IngestChangeLog extends Base
      *
      * IMPORTANT:
      * - extUuid stability should normally include the upstream stream (entity/table) to avoid collisions
-     *   when different streams reuse the same extId inside the same ingest_changelog table.
+     *   when different streams reuse the same extId inside the same upstream_changelog table.
      *
      * NOTE:
      * - We force doc.uuid := extUuid inside normalizeToJson() to avoid volatile upstream 'uuid' fields
@@ -237,7 +237,7 @@ final class IngestChangeLog extends Base
         array|object $rawDoc,
         string $extId,
         string $ifName,
-        TransformerInterface|callable $transform,
+        UpstreamTransformer|callable $transform,
         array|object $rawMeta = [],
         ?string $sat = null,
         array $options = []
@@ -370,7 +370,7 @@ final class IngestChangeLog extends Base
         }
     }
 
-    private function inferTransformName(TransformerInterface|callable $transform): string
+    private function inferTransformName(UpstreamTransformer|callable $transform): string
     {
         if (is_object($transform) && !$transform instanceof \Closure) {
             return $transform::class;
