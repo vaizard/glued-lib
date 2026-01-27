@@ -8,17 +8,22 @@ use Ramsey\Uuid\Uuid;
 use Rs\Json\Merge\Patch as JsonMergePatch;
 
 /*
+DISCOVERABILITY / NAMING MAP (storage-level):
+- doc_changelog       -> internal deduped append-only history (DocChangelog)
+- doc_snapshot        -> internal mutable current state (DocSnapshot)
+- upstream_journal    -> upstream append-only raw receipts (UpstreamJournal)
+- upstream_changelog  -> upstream deduped history per stable upstream identity (UpstreamChangelog)
 
 -- =========================
 -- (INTERNAL) DOC CHANGELOG
 -- =========================
 -- Append-only history of internal documents, partitioned by document UUID.
 -- Consecutive dedupe by content hash (ignoring 'uuid'): logs A→B→A, suppresses A→A→A.
--- Used by DocState class for full audit trail and time-slice reads (iat/ms, optional dat; period from meta.nbf/exp).
--- Also usable standalone via DocChangeLogRepo.
+-- Used by DocSnapshot class for full audit trail and time-slice reads (iat/ms, optional dat; period from meta.nbf/exp).
+-- Also usable standalone via DocChangelogRepo.
 
-DROP TABLE IF EXISTS logged_doc CASCADE;
-CREATE TABLE logged_doc (
+DROP TABLE IF EXISTS doc_changelog CASCADE;
+CREATE TABLE doc_changelog (
   uuid     uuid  NOT NULL,
   version  uuid  DEFAULT uuidv7() NOT NULL,
   doc      jsonb NOT NULL,
@@ -41,23 +46,22 @@ CREATE TABLE logged_doc (
   PRIMARY KEY (version)
 );
 
-
 -- Fast “latest per uuid” and nonce access
-CREATE INDEX IF NOT EXISTS logged_doc_uuid_iat_ver_desc_inc ON logged_doc (uuid, iat DESC, version DESC) INCLUDE (nonce, dat);
+CREATE INDEX IF NOT EXISTS doc_changelog_uuid_iat_ver_desc_inc ON doc_changelog (uuid, iat DESC, version DESC) INCLUDE (nonce, dat);
 -- Accelerates period @> :asof
-CREATE INDEX IF NOT EXISTS logged_doc_period_gist ON logged_doc USING GIST (period);
+CREATE INDEX IF NOT EXISTS doc_changelog_period_gist ON doc_changelog USING GIST (period);
 
 
 -- =========================
--- (INTERNAL) DOC STATE
+-- (INTERNAL) DOC SNAPSHOT
 -- =========================
 -- One mutable row per document UUID (canonical current state).
--- Idempotent upsert by UUID; optionally mirrors changes into DOCUMENT LOG.
+-- Idempotent upsert by UUID; optionally mirrors changes into DOCUMENT CHANGELOG.
 -- Soft-delete sets dat (ms) and may tombstone doc with {"_deleted": true}.
--- Use with DocState class
+-- Use with DocSnapshot class
 
-DROP TABLE IF EXISTS mutable_doc CASCADE;
-CREATE TABLE mutable_doc (
+DROP TABLE IF EXISTS doc_snapshot CASCADE;
+CREATE TABLE doc_snapshot (
   uuid     uuid  GENERATED ALWAYS AS ((doc->>'uuid')::uuid) STORED NOT NULL,
   version  uuid  DEFAULT uuidv7() NOT NULL,
   doc      jsonb NOT NULL,
@@ -70,18 +74,18 @@ CREATE TABLE mutable_doc (
   PRIMARY KEY (uuid)
 );
 
-CREATE INDEX IF NOT EXISTS mutable_doc_iat_desc ON mutable_doc (iat DESC);
-CREATE INDEX IF NOT EXISTS mutable_doc_uat_desc ON mutable_doc (uat DESC);
+CREATE INDEX IF NOT EXISTS doc_snapshot_iat_desc ON doc_snapshot (iat DESC);
+CREATE INDEX IF NOT EXISTS doc_snapshot_uat_desc ON doc_snapshot (uat DESC);
 
 -- =========================
--- (EXTERNAL) INGEST RAW LOG
+-- (EXTERNAL) UPSTREAM JOURNAL
 -- =========================
 -- Append-only record of upstream payloads keyed by ext_id (no dedupe; every event is stored).
 -- For forensic replay and auditing of “as received” data (iat/ms; nonce = md5(doc::text)).
--- Use with IngestRawLog class
+-- Use with UpstreamJournal class
 
-DROP TABLE IF EXISTS ingest_rawlog CASCADE;
-CREATE TABLE ingest_rawlog (
+DROP TABLE IF EXISTS upstream_journal CASCADE;
+CREATE TABLE upstream_journal (
   ext_id   text NOT NULL,
   uuid     uuid DEFAULT gen_random_uuid() NOT NULL,  -- raw row id
   version  uuid DEFAULT uuidv7() NOT NULL,           -- time-sortable tie-break
@@ -105,20 +109,20 @@ CREATE TABLE ingest_rawlog (
   PRIMARY KEY (uuid)
 );
 
-CREATE INDEX ingest_rawlog_ext_iat_ver_desc ON ingest_rawlog (ext_id, iat DESC, version DESC);
-CREATE INDEX ingest_rawlog_nonce_iat        ON ingest_rawlog (nonce, iat);
+CREATE INDEX upstream_journal_ext_iat_ver_desc ON upstream_journal (ext_id, iat DESC, version DESC);
+CREATE INDEX upstream_journal_nonce_iat        ON upstream_journal (nonce, iat);
 
 
 -- =========================
--- (EXTERNAL) INGEST CHANGELOG
+-- (EXTERNAL) UPSTREAM CHANGELOG
 -- =========================
 -- Versioned state per upstream record; stream identity = stable UUID v5(source, ext_id).
 -- Consecutive dedupe by last nonce: logs A→B→A, suppresses A→A→A; iat/ms; period clamped from meta.nbf/exp/dat.
 -- Use for efficient “latest per ext_id” lookups and revert-aware change tracking.
--- Use with IngestChangeLog class
+-- Use with UpstreamChangelog class
 
-DROP TABLE IF EXISTS ingest_changelog CASCADE;
-CREATE TABLE ingest_changelog (
+DROP TABLE IF EXISTS upstream_changelog CASCADE;
+CREATE TABLE upstream_changelog (
   ext_id   text NOT NULL,
   uuid     uuid NOT NULL,                           -- v5 (table/source, ext_id) from app
   version  uuid DEFAULT uuidv7() NOT NULL,          -- per-version id
@@ -143,13 +147,13 @@ CREATE TABLE ingest_changelog (
 );
 
 -- Allow A→B→A (non-unique); keeps quick probes by (uuid, nonce)
-CREATE INDEX IF NOT EXISTS icl_uuid_nonce_nonuniq ON ingest_changelog (uuid, nonce);
+CREATE INDEX IF NOT EXISTS upstream_changelog_uuid_nonce_nonuniq ON upstream_changelog (uuid, nonce);
 -- Deterministic "latest per uuid" (index-only with nonce available)
-CREATE INDEX IF NOT EXISTS icl_uuid_iat_ver_desc_inc ON ingest_changelog (uuid, iat DESC, version DESC) INCLUDE (nonce);
+CREATE INDEX IF NOT EXISTS upstream_changelog_uuid_iat_ver_desc_inc ON upstream_changelog (uuid, iat DESC, version DESC) INCLUDE (nonce);
 -- Time-slice queries (period @> :asof)
-CREATE INDEX IF NOT EXISTS icl_period_gist ON ingest_changelog USING GIST (period);
+CREATE INDEX IF NOT EXISTS upstream_changelog_period_gist ON upstream_changelog USING GIST (period);
 -- Existing ordering by ext_id + recency
-CREATE INDEX IF NOT EXISTS icl_ext_uat_ver_desc ON ingest_changelog (ext_id, uat DESC, version DESC);
+CREATE INDEX IF NOT EXISTS upstream_changelog_ext_uat_ver_desc ON upstream_changelog (ext_id, uat DESC, version DESC);
 
 */
 
@@ -189,13 +193,11 @@ Meta doc example
       "stream": "acord.packset",                       // upstream entity/table/collection name (human readable)
       "extId": "82221090",                             // upstream key as seen by that stream
       "extUuid": "6a52b0f0-3b9d-5c28-8d26-7a5f4b3c8f1e",// stable UUID for (if+stream+extId); usually UUIDv5 in app
-      "extVersion": "0197d3f2-8f6d-74c1-a3a2-9b2f3e1a4c7d", // version id of the ingested row (e.g. ingest_changelog.version UUIDv7)
+      "extVersion": "0197d3f2-8f6d-74c1-a3a2-9b2f3e1a4c7d", // version id of the ingested row (e.g. upstream_changelog.version UUIDv7)
       "extIat": 1700000000123                          // ingest time (ms) of that extVersion
     }
   ]
 }
-
-
 
  */
 
@@ -540,5 +542,3 @@ abstract class Base
     }
 
 }
-
-
