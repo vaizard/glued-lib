@@ -64,38 +64,37 @@ final class DocSnapshot extends Base
         [$uuid, $docJson, $metaJson] = $this->normalizeToJson($doc, $meta);
 
         $this->query = "
-        WITH ts AS (
-          SELECT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint AS ms
-        ),
-        up AS (
-          INSERT INTO {$this->schema}.{$this->table} AS t (doc, meta, sat, iat, uat)
-          SELECT :doc::jsonb, :meta::jsonb, :sat, ts.ms, ts.ms
-            FROM ts
-          ON CONFLICT ({$this->uuidCol}) DO UPDATE
-            SET doc = EXCLUDED.doc,
-                meta = EXCLUDED.meta,
-                sat  = EXCLUDED.sat,
-                uat  = ts.ms,
-                version = uuidv7()
-          FROM ts
-          WHERE (t.doc, t.meta, t.sat) IS DISTINCT FROM (EXCLUDED.doc, EXCLUDED.meta, EXCLUDED.sat)
-          RETURNING
-            t.{$this->uuidCol} AS uuid,
-            t.version,
-            t.iat,
-            encode(t.nonce, 'hex') AS nonce
-        )
-        SELECT uuid, version, iat, nonce FROM up
-        UNION ALL
-        SELECT t.{$this->uuidCol} AS uuid,
-               t.version,
-               t.iat,
-               encode(t.nonce, 'hex') AS nonce
-          FROM {$this->schema}.{$this->table} t
-         WHERE t.{$this->uuidCol} = :uuid
-           AND NOT EXISTS (SELECT 1 FROM up)
-        LIMIT 1;
-        ";
+    WITH ts AS (
+      SELECT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint AS ms
+    ),
+    up AS (
+      INSERT INTO {$this->schema}.{$this->table} AS t (doc, meta, sat, iat, uat)
+      SELECT :doc::jsonb, :meta::jsonb, :sat, ts.ms, ts.ms
+        FROM ts
+      ON CONFLICT ({$this->uuidCol}) DO UPDATE
+        SET doc = EXCLUDED.doc,
+            meta = EXCLUDED.meta,
+            sat  = EXCLUDED.sat,
+            uat  = (SELECT ms FROM ts),
+            version = uuidv7()
+      WHERE (t.doc, t.meta, t.sat) IS DISTINCT FROM (EXCLUDED.doc, EXCLUDED.meta, EXCLUDED.sat)
+      RETURNING
+        t.{$this->uuidCol} AS uuid,
+        t.version,
+        t.iat,
+        encode(t.nonce, 'hex') AS nonce
+    )
+    SELECT uuid, version, iat, nonce FROM up
+    UNION ALL
+    SELECT t.{$this->uuidCol} AS uuid,
+           t.version,
+           t.iat,
+           encode(t.nonce, 'hex') AS nonce
+      FROM {$this->schema}.{$this->table} t
+     WHERE t.{$this->uuidCol} = :uuid
+       AND NOT EXISTS (SELECT 1 FROM up)
+    LIMIT 1;
+    ";
 
         $this->params = [ ':doc'=>$docJson, ':meta'=>$metaJson, ':sat'=>$sat, ':uuid'=>$uuid ];
         $this->stmt = $this->pdo->prepare($this->query);
@@ -119,58 +118,56 @@ final class DocSnapshot extends Base
         [$uuid, $docJson, $metaJson] = $this->normalizeToJson($doc, $meta);
 
         $this->query = "
-        WITH ts AS (
-          SELECT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint AS ms
-        ),
-        up AS (
-          INSERT INTO {$this->schema}.{$this->table} AS t (doc, meta, sat, iat, uat)
-          SELECT :doc::jsonb, :meta::jsonb, :sat, ts.ms, ts.ms
-            FROM ts
-          ON CONFLICT ({$this->uuidCol}) DO UPDATE
-            SET doc = EXCLUDED.doc,
-                meta = EXCLUDED.meta,
-                sat  = EXCLUDED.sat,
-                uat  = ts.ms,
-                version = uuidv7()
-          FROM ts
-          WHERE (t.doc, t.meta, t.sat) IS DISTINCT FROM (EXCLUDED.doc, EXCLUDED.meta, EXCLUDED.sat)
-          RETURNING
-            t.{$this->uuidCol} AS uuid,
-            t.version,
-            t.iat,
-            encode(t.nonce, 'hex') AS nonce,
-            t.doc,
-            t.meta,
-            t.sat,
-            decode(md5((t.doc - 'uuid')::text), 'hex') AS nonce_calc
-        ),
-        ins AS (
-          INSERT INTO {$this->schema}.{$logTable} (uuid, doc, meta, iat, sat)
-          SELECT u.uuid, u.doc, u.meta, ts.ms, u.sat
-            FROM up u
-            CROSS JOIN ts
-           WHERE COALESCE(
-                   (SELECT l.nonce
-                      FROM {$this->schema}.{$logTable} l
-                     WHERE l.uuid = u.uuid
-                     ORDER BY l.iat DESC, l.version DESC
-                     LIMIT 1),
-                   '\x'::bytea
-                 ) IS DISTINCT FROM u.nonce_calc
-          RETURNING 1
-        )
-        SELECT uuid, version, iat, nonce
-          FROM up
-        UNION ALL
-        SELECT t.{$this->uuidCol} AS uuid,
-               t.version,
-               t.iat,
-               encode(t.nonce, 'hex') AS nonce
-          FROM {$this->schema}.{$this->table} t
-         WHERE t.{$this->uuidCol} = :uuid
-           AND NOT EXISTS (SELECT 1 FROM up)
-        LIMIT 1;
-        ";
+    WITH ts AS (
+      SELECT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint AS ms
+    ),
+    up AS (
+      INSERT INTO {$this->schema}.{$this->table} AS t (doc, meta, sat, iat, uat)
+      SELECT :doc::jsonb, :meta::jsonb, :sat, ts.ms, ts.ms
+        FROM ts
+      ON CONFLICT ({$this->uuidCol}) DO UPDATE
+        SET doc = EXCLUDED.doc,
+            meta = EXCLUDED.meta,
+            sat  = EXCLUDED.sat,
+            uat  = (SELECT ms FROM ts),
+            version = uuidv7()
+      WHERE (t.doc, t.meta, t.sat) IS DISTINCT FROM (EXCLUDED.doc, EXCLUDED.meta, EXCLUDED.sat)
+      RETURNING
+        t.{$this->uuidCol} AS uuid,
+        t.version,
+        t.iat,
+        encode(t.nonce, 'hex') AS nonce,
+        t.doc,
+        t.meta,
+        t.sat,
+        decode(md5((t.doc - 'uuid')::text), 'hex') AS nonce_calc
+    ),
+    ins AS (
+      INSERT INTO {$this->schema}.{$logTable} (uuid, doc, meta, iat, sat)
+      SELECT u.uuid, u.doc, u.meta, (SELECT ms FROM ts), u.sat
+        FROM up u
+       WHERE COALESCE(
+               (SELECT l.nonce
+                  FROM {$this->schema}.{$logTable} l
+                 WHERE l.uuid = u.uuid
+                 ORDER BY l.iat DESC, l.version DESC
+                 LIMIT 1),
+               '\x'::bytea
+             ) IS DISTINCT FROM u.nonce_calc
+      RETURNING 1
+    )
+    SELECT uuid, version, iat, nonce
+      FROM up
+    UNION ALL
+    SELECT t.{$this->uuidCol} AS uuid,
+           t.version,
+           t.iat,
+           encode(t.nonce, 'hex') AS nonce
+      FROM {$this->schema}.{$this->table} t
+     WHERE t.{$this->uuidCol} = :uuid
+       AND NOT EXISTS (SELECT 1 FROM up)
+    LIMIT 1;
+    ";
 
         $this->params = [
             ':doc'  => $docJson,
