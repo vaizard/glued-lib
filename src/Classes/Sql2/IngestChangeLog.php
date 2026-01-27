@@ -302,7 +302,7 @@ final class IngestChangeLog extends Base
 
             $state = null;
             if ($stateEnabled) {
-                $state = new DocState($pdo, $stateTable, null, $this->schema); // no implicit logging here
+                $state = new DocSnapshot($pdo, $stateTable, null, $this->schema); // no implicit logging here
             }
 
             $out = [];
@@ -354,7 +354,7 @@ final class IngestChangeLog extends Base
 
                 // 4) Upsert current state (idempotent; no log here)
                 if ($stateEnabled) {
-                    /** @var DocState $state */
+                    /** @var DocSnapshot $state */
                     $state->put($itDoc, $baked, $intSat);
                 }
 

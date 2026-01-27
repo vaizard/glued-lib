@@ -10,14 +10,19 @@ use Rs\Json\Merge\Patch as JsonMergePatch;
  * Mutable documents repository.
  *
  * Supports:
- *  - putAndLog(): change + append history (logged_doc)
+ *  - putAndLog(): change + append history (doc_changelog)
  *  - put(): change only (no log)
  *  - patchDocAndLog()/patchMetaAndLog(): merge-patch + log
  *  - patchDoc()/patchMeta(): merge-patch without log
  *  - softDeleteAndLog(): mark deleted + log
  *  - softDelete(): mark deleted without log
+ *
+ * Discoverability:
+ * - Snapshot table:  doc_snapshot     (pass as $table)
+ * - Changelog table: doc_changelog    (pass as $logTable)
+ * - Pairing: DocChangelog is the append-only history for DocSnapshot.
  */
-final class DocState extends Base
+final class DocSnapshot extends Base
 {
     /** @var ?string Target history table (append-only) */
     private ?string $logTable;
