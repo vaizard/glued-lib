@@ -40,7 +40,16 @@ interface UpstreamTransformer
 }
 
 /**
- * External ingest (append-only, stable uuid per ext_id via UUID v5).
+ * External ingest changelog (versioned, consecutive-deduped).
+ *
+ * IMPORTANT INVARIANT:
+ * - The upstream payload stored in column `doc` is preserved AS RECEIVED.
+ * - This class MUST NOT mutate the upstream payload (e.g. must not inject doc.uuid).
+ *
+ * Identity:
+ * - extUuid is stored in column `uuid` (stable UUIDv5 for (ifName + scope + extId)).
+ * - extVersion is stored in column `version` (UUIDv7).
+ * - Consecutive dedupe uses nonce = md5(doc::text) computed from the stored payload.
  *
  * Table contract (upstream_changelog):
  * - PK (uuid, version), stable uuid v5(ext_id), NON-UNIQUE (uuid, nonce)  ← consecutive dedupe in SQL
@@ -73,9 +82,21 @@ interface UpstreamTransformer
  */
 final class UpstreamChangelog extends Base
 {
-    public function __construct(PDO $pdo, string $table, ?string $schema = null)
+    /**
+     * Logical identity namespace key for extUuid stability.
+     *
+     * IMPORTANT:
+     * - Do NOT change casually; affects extUuid stability and therefore idempotency.
+     * - This is intentionally decoupled from physical table name.
+     *
+     * Default: equals the constructor $table (preserves previous behavior).
+     */
+    private string $uuidNamespaceKey;
+
+    public function __construct(PDO $pdo, string $table, ?string $schema = null, ?string $uuidNamespaceKey = null)
     {
         parent::__construct($pdo, $table, $schema);
+        $this->uuidNamespaceKey = $uuidNamespaceKey ?? $table;
     }
 
     /*
@@ -83,7 +104,7 @@ final class UpstreamChangelog extends Base
      */
 
     /**
-     * Append a versioned RAW ingest row (consecutive dedupe, per-uuid xact advisory lock).
+     * Append a versioned upstream row (consecutive dedupe, per-uuid xact advisory lock).
      *
      * Terminology:
      * - $stream: upstream entity/table name (semantic provenance meaning in this class).
@@ -100,8 +121,7 @@ final class UpstreamChangelog extends Base
      *   when different streams reuse the same extId inside the same upstream_changelog table.
      *
      * NOTE:
-     * - We force doc.uuid := extUuid inside normalizeToJson() to avoid volatile upstream 'uuid' fields
-     *   causing nonce churn.
+     * - This method preserves upstream payload AS RECEIVED. It does NOT inject any identity fields into doc.
      *
      * @return array{uuid:string,version:string,iat:string,nonce:string}
      */
@@ -121,11 +141,15 @@ final class UpstreamChangelog extends Base
         $idScope = $uuidScope !== '' ? $uuidScope : $stream;
 
         // Fold identity discriminator (idScope) into the namespace key used for stable UUIDv5.
-        // normalizeToJson() forces it to doc.uuid (prevents upstream random uuid fields from breaking dedupe).
         $sourceKey = $idScope !== '' ? ($ifName . ':' . $idScope) : $ifName;
 
-        $stable = UuidTools::stableForSource($this->table, $sourceKey, $extId);
-        [$uuid, $docJson, $metaJson] = $this->normalizeToJson($doc, $meta, $stable);
+        // Stable extUuid (stored in column `uuid`); upstream payload remains unchanged.
+        $uuid = UuidTools::stableForSource($this->uuidNamespaceKey, $sourceKey, $extId);
+
+        // Encode payload/meta without forcing doc.uuid
+        [$d, $m] = $this->normalize($doc, $meta, null);
+        $docJson  = json_encode($d, $this->jsonFlags);
+        $metaJson = json_encode($m, $this->jsonFlags);
 
         $this->query = "
         WITH lock AS (
@@ -197,34 +221,34 @@ final class UpstreamChangelog extends Base
 
     /**
      * Ingest RAW, transform to INTERNAL, optionally:
-     * - append INTERNAL changelog (log table),
-     * - upsert INTERNAL mutable state (state table).
+     * - append INTERNAL changelog (doc changelog table),
+     * - upsert INTERNAL mutable state (doc snapshot table).
      *
      * Stream semantics:
      * - 'stream' ALWAYS means the UPSTREAM entity/table name (e.g. "acord.packset").
      *
-     * RAW identity vs provenance:
-     * - RAW extUuid is stable per (ifName, discriminator, extId), where discriminator defaults to 'stream'.
-     * - If you need RAW extUuid to fork beyond (ifName, stream, extId), provide 'rawUuidScope' (identity-only).
+     * Upstream identity vs provenance:
+     * - extUuid is stable per (ifName, discriminator, extId), where discriminator defaults to 'stream'.
+     * - If you need extUuid to fork beyond (ifName, stream, extId), provide 'upstreamUuidScope' (identity-only).
      *   Provenance still records 'stream' as the upstream entity/table name.
      *
-     * Options (explicit routing; log/state required):
+     * Options (explicit routing; docChangelog/docSnapshot required):
      * - ifUuid (string, REQUIRED): UUID of the interface configuration (identity discriminator for internal uuids)
      * - ifInstance (string, optional): remote-defined instance/tenant id
      *
      * - stream (string, REQUIRED): upstream entity/table name (provenance)
-     * - rawUuidScope (string, optional): identity-only discriminator for RAW extUuid namespacing (default: stream)
+     * - upstreamUuidScope (string, optional): identity-only discriminator for extUuid namespacing (default: stream)
      *
      * - schemaVer (int, optional): internal schema version (default 1)
      * - transformName (string, optional): transformer identifier (default: class name / "callable")
      * - transformVer (string, optional): transformer version tag (e.g. git sha); default: env GIT_SHA
      * - transformCfg (string, optional): hash of transformer mapping/config
      *
-     * - log (string|false, REQUIRED):
+     * - docChangelog (string|false, REQUIRED):
      *     - string: write INTERNAL changelog to this table
      *     - false: skip INTERNAL changelog
      *
-     * - state (string|false, REQUIRED):
+     * - docSnapshot (string|false, REQUIRED):
      *     - string: upsert INTERNAL mutable state to this table
      *     - false: skip INTERNAL mutable state
      *
@@ -256,9 +280,9 @@ final class UpstreamChangelog extends Base
             throw new \InvalidArgumentException('transformToInternal() requires $options["stream"] (upstream entity/table name).');
         }
 
-        $rawUuidScope = trim((string)($options['rawUuidScope'] ?? ''));
-        if ($rawUuidScope === '') {
-            $rawUuidScope = $stream;
+        $upstreamUuidScope = trim((string)($options['upstreamUuidScope'] ?? ''));
+        if ($upstreamUuidScope === '') {
+            $upstreamUuidScope = $stream;
         }
 
         $gitSha        = getenv('GIT_SHA');
@@ -267,12 +291,12 @@ final class UpstreamChangelog extends Base
         $transformVer  = trim((string)($options['transformVer'] ?? ($gitSha !== false ? $gitSha : '')));
         $transformCfg  = $options['transformCfg'] ?? null;
 
-        [$logEnabled, $logTable]     = self::resolveDestTable($options, 'log');
-        [$stateEnabled, $stateTable] = self::resolveDestTable($options, 'state');
+        [$logEnabled, $logTable]     = self::resolveDestTable($options, 'docChangelog');
+        [$stateEnabled, $stateTable] = self::resolveDestTable($options, 'docSnapshot');
 
         $pdo->beginTransaction();
         try {
-            // 1) RAW ingest append (or latest if duplicate)
+            // 1) Upstream append (or latest if duplicate)
             $rawRow = $this->appendIfChanged(
                 $rawDoc,
                 $extId,
@@ -280,7 +304,7 @@ final class UpstreamChangelog extends Base
                 $rawMeta,
                 $sat,
                 stream: $stream,
-                uuidScope: $rawUuidScope
+                uuidScope: $upstreamUuidScope
             );
 
             $extUuid    = (string)$rawRow['uuid'];

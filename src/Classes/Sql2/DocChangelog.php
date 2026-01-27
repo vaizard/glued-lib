@@ -32,14 +32,18 @@ final class DocChangelog extends Base
     {
         [$uuid, $docJson, $metaJson] = $this->normalizeToJson($doc, $meta);
         $this->query = "
-        WITH candidate AS (
+        WITH ts AS (
+          SELECT (EXTRACT(EPOCH FROM clock_timestamp())*1000)::bigint AS ms
+        ),
+        candidate AS (
           SELECT
-            :uuid::uuid                                        AS uuid,
-            :doc::jsonb                                        AS doc,
-            :meta::jsonb                                       AS meta,
-            :sat                                               AS sat,
-            (EXTRACT(EPOCH FROM clock_timestamp())*1000)::bigint AS iat,
-            decode(md5((:doc::jsonb - 'uuid')::text), 'hex')     AS nonce_calc
+            :uuid::uuid                         AS uuid,
+            :doc::jsonb                         AS doc,
+            :meta::jsonb                        AS meta,
+            :sat                                AS sat,
+            ts.ms                               AS iat,
+            decode(md5((:doc::jsonb - 'uuid')::text), 'hex') AS nonce_calc
+          FROM ts
         ),
         ins AS (
           INSERT INTO {$this->schema}.{$this->table} (uuid, doc, meta, iat, sat)

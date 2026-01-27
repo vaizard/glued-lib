@@ -245,9 +245,11 @@ final class UuidTools
  *
  *  Envelope read model:
  *    SELECT doc || jsonb_build_object(
- *      '_meta', meta || jsonb_build_object('uuid', uuid::text, 'version', version::text, 'iat', iat, 'uat', uat, 'dat', dat, 'sat', sat, 'nonce', encode(nonce,'hex'))
+ *      '_meta', meta,
+ *      'iat', iat, 'uat', uat, 'sat', sat, 'dat', dat,
+ *      'version', version, 'nonce', encode(nonce,'hex')
  *    )
- *    -- keys on the right overwrite same keys in `meta`.
+ *    -- keys on the right overwrite same keys in `doc`.
  */
 abstract class Base
 {
@@ -415,6 +417,39 @@ abstract class Base
     }
 
     /**
+     * Normalize doc/meta, ensuring UUID in doc if provided.
+     *
+     * @param array|object $doc
+     * @param array|object $meta
+     * @param string|null  $forceUuid  If non-null, set doc['uuid']=forceUuid
+     * @return array [array $doc, array $meta]
+     */
+    protected function normalize(array|object $doc, array|object $meta = [], ?string $forceUuid = null): array
+    {
+        $d = (array)$doc;
+        if ($forceUuid !== null) $d['uuid'] = $forceUuid;
+        $m = (array)$meta;
+        return [$d, $m];
+    }
+
+    /**
+     * Normalize doc/meta (optionally forcing UUID) and JSON-encode both.
+     *
+     * @param array|object $doc
+     * @param array|object $meta
+     * @param string|null  $uuid Optional UUID to force into doc['uuid'].
+     * @return array{0:string,1:string,2:string} [uuid, docJson, metaJson]
+     */
+    protected function normalizeToJson(array|object $doc, array|object $meta = [], ?string $uuid = null): array
+    {
+        $uuid = $uuid ?? (string)((is_array($doc) ? ($doc['uuid'] ?? null) : ($doc->uuid ?? null)) ?? Uuid::uuid4());
+        [$d, $m] = $this->normalize($doc, $meta, $uuid);
+        $docJson  = json_encode($d, $this->jsonFlags);
+        $metaJson = json_encode($m, $this->jsonFlags);
+        return [$uuid, $docJson, $metaJson];
+    }
+
+    /**
      * Envelope select: doc || system columns + `_meta` (stored meta).
      *
      * - Root keys (iat/uat/dat/sat/version/nonce) are system fields and may overwrite doc keys if present.
@@ -429,7 +464,7 @@ abstract class Base
             'uat', uat,
             'sat', sat,
             'dat', dat,
-            'version', {$this->versionCol},
+            'version', {$this->versionCol}::text,
             'nonce', encode(nonce, 'hex')
         )";
     }

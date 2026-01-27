@@ -64,17 +64,20 @@ final class DocSnapshot extends Base
         [$uuid, $docJson, $metaJson] = $this->normalizeToJson($doc, $meta);
 
         $this->query = "
-        WITH up AS (
+        WITH ts AS (
+          SELECT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint AS ms
+        ),
+        up AS (
           INSERT INTO {$this->schema}.{$this->table} AS t (doc, meta, sat, iat, uat)
-          VALUES (:doc::jsonb, :meta::jsonb, :sat,
-                  (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
-                  (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint)
+          SELECT :doc::jsonb, :meta::jsonb, :sat, ts.ms, ts.ms
+            FROM ts
           ON CONFLICT ({$this->uuidCol}) DO UPDATE
             SET doc = EXCLUDED.doc,
                 meta = EXCLUDED.meta,
                 sat  = EXCLUDED.sat,
-                uat  = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
+                uat  = ts.ms,
                 version = uuidv7()
+          FROM ts
           WHERE (t.doc, t.meta, t.sat) IS DISTINCT FROM (EXCLUDED.doc, EXCLUDED.meta, EXCLUDED.sat)
           RETURNING
             t.{$this->uuidCol} AS uuid,
@@ -116,17 +119,20 @@ final class DocSnapshot extends Base
         [$uuid, $docJson, $metaJson] = $this->normalizeToJson($doc, $meta);
 
         $this->query = "
-        WITH up AS (
+        WITH ts AS (
+          SELECT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint AS ms
+        ),
+        up AS (
           INSERT INTO {$this->schema}.{$this->table} AS t (doc, meta, sat, iat, uat)
-          VALUES (:doc::jsonb, :meta::jsonb, :sat,
-                  (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
-                  (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint)
+          SELECT :doc::jsonb, :meta::jsonb, :sat, ts.ms, ts.ms
+            FROM ts
           ON CONFLICT ({$this->uuidCol}) DO UPDATE
             SET doc = EXCLUDED.doc,
                 meta = EXCLUDED.meta,
                 sat  = EXCLUDED.sat,
-                uat  = (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
+                uat  = ts.ms,
                 version = uuidv7()
+          FROM ts
           WHERE (t.doc, t.meta, t.sat) IS DISTINCT FROM (EXCLUDED.doc, EXCLUDED.meta, EXCLUDED.sat)
           RETURNING
             t.{$this->uuidCol} AS uuid,
@@ -140,8 +146,9 @@ final class DocSnapshot extends Base
         ),
         ins AS (
           INSERT INTO {$this->schema}.{$logTable} (uuid, doc, meta, iat, sat)
-          SELECT u.uuid, u.doc, u.meta, (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint, u.sat
+          SELECT u.uuid, u.doc, u.meta, ts.ms, u.sat
             FROM up u
+            CROSS JOIN ts
            WHERE COALESCE(
                    (SELECT l.nonce
                       FROM {$this->schema}.{$logTable} l
@@ -394,3 +401,4 @@ final class DocSnapshot extends Base
         return $row ? json_decode($row, true) : null;
     }
 }
+

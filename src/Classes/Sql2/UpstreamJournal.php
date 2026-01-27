@@ -9,17 +9,17 @@ use PDO;
  * Raw upstream journal (append-only; as-received feed).
  *
  * Table contract (glued.upstream_journal):
- * - {$uuidCol}     uuid     DEFAULT gen_random_uuid()
- * - {$versionCol}  uuid     DEFAULT uuidv7()               -- PK(version)
- * - {$docCol}      jsonb    -- raw payload
- * - {$metaCol}     jsonb    -- provenance/audit; may hold 'nbf'/'exp' (unix seconds)
- * - nonce          bytea    -- STORED md5(doc::text)
- * - iat            bigint   -- unix seconds (append time) DEFAULT EXTRACT(EPOCH ...)
- * - uat            bigint   -- VIRTUAL: same as iat
- * - sat            text     -- raw source timestamp (free text)
  * - ext_id         text     -- upstream id (required)
- * - period         int8range VIRTUAL int8range(COALESCE(meta->>'nbf', iat), meta->>'exp', '[)')
- *   (both nbf/exp read as BIGINT if present in meta)
+ * - {$uuidCol}     uuid     DEFAULT gen_random_uuid()      -- PK(uuid) (row id)
+ * - {$versionCol}  uuid     DEFAULT uuidv7()               -- time-sortable tie-break
+ * - {$docCol}      jsonb    -- raw payload (AS RECEIVED)
+ * - {$metaCol}     jsonb    -- provenance/audit; may hold 'nbf'/'exp' (unix ms if present, consistent with other tables)
+ * - nonce          bytea    -- STORED md5(doc::text)
+ * - iat            bigint   -- unix time (ms) (append time) DEFAULT EXTRACT(EPOCH ...)*1000
+ * - uat            bigint   -- VIRTUAL: same as iat
+ * - dat            bigint?  -- optional (NULL by default)
+ * - sat            text     -- raw source timestamp (free text)
+ * - period         int8range GENERATED: clamped from meta.nbf/meta.exp/dat/iat
  *
  * Indexes:
  * - (ext_id, iat DESC, version DESC)
@@ -62,7 +62,7 @@ final class UpstreamJournal extends Base
     }
 
     /**
-     * Append a raw ingest row (append-only), Unix time in **seconds** (DB default).
+     * Append a raw ingest row (append-only), Unix time in **milliseconds** (DB default).
      *
      * @param array|object $doc   Raw payload to store.
      * @param string       $extId External identifier of the upstream record.
@@ -77,7 +77,7 @@ final class UpstreamJournal extends Base
         $docJson  = json_encode($d, $this->jsonFlags);
         $metaJson = json_encode($m, $this->jsonFlags);
 
-        // Let the table defaults compute iat (seconds) and version (uuidv7)
+        // Let the table defaults compute iat (ms) and version (uuidv7)
         $this->query = "
             INSERT INTO {$this->schema}.{$this->table} (doc, meta, ext_id, sat)
             VALUES (:doc::jsonb, :meta::jsonb, :ext, :sat)
