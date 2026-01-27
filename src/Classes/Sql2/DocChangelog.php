@@ -2,16 +2,20 @@
 
 declare(strict_types=1);
 namespace Glued\Lib\Classes\Sql2;
-use PDO;
 
+use PDO;
 
 /**
  * Logged documents repository (append-only versions).
  *
- * Table contract (logged_doc):
+ * Table contract (doc_changelog):
  * - PK(version), uuid, doc, meta, iat, sat, dat?, virtual period
+ *
+ * Pairing:
+ * - DocSnapshot holds canonical current state (one row per uuid).
+ * - DocChangelog holds append-only history (deduped consecutively by nonce).
  */
-final class DocChangeLog extends Base
+final class DocChangelog extends Base
 {
     public function __construct(PDO $pdo, string $table, ?string $schema = null)
     {
@@ -83,7 +87,6 @@ final class DocChangeLog extends Base
         // Fallback (shouldn't happen, but keep shape)
         return $row ?: ['uuid' => $uuid, 'version' => '', 'iat' => '', 'nonce' => ''];
     }
-
 
     /** Latest version envelope by uuid. */
     public function getLatest(string $uuid): ?array

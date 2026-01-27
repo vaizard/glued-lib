@@ -297,7 +297,7 @@ final class IngestChangeLog extends Base
 
             $log = null;
             if ($logEnabled) {
-                $log = new DocChangeLog($pdo, $logTable, $this->schema);
+                $log = new DocChangelog($pdo, $logTable, $this->schema);
             }
 
             $state = null;
@@ -347,7 +347,7 @@ final class IngestChangeLog extends Base
                 // 3) Append internal history (consecutive dedupe)
                 $version = '';
                 if ($logEnabled) {
-                    /** @var DocChangeLog $log */
+                    /** @var DocChangelog $log */
                     $verRow = $log->appendIfChanged($itDoc, $baked, $intSat);
                     $version = (string)($verRow['version'] ?? '');
                 }
