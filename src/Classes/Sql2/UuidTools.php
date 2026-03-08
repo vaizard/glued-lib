@@ -1,9 +1,8 @@
 <?php
-use Ramsey\Uuid\Uuid;
-
 declare(strict_types=1);
 namespace Glued\Lib\Classes\Sql2;
 
+use Ramsey\Uuid\Uuid;
 /**
  * Utilities for stable UUID v5 derivation (stable per ext_id) and general helpers.
  */
