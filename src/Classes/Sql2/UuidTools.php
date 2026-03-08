@@ -1,5 +1,5 @@
 <?php
-
+use Ramsey\Uuid\Uuid;
 
 declare(strict_types=1);
 namespace Glued\Lib\Classes\Sql2;
