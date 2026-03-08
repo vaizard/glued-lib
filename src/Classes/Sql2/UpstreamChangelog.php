@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Glued\Lib\Classes\Sql2;
 
+
 use PDO;
 
 /**
