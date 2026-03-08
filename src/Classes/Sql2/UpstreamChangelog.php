@@ -47,7 +47,7 @@ interface UpstreamTransformer
  * - This class MUST NOT mutate the upstream payload (e.g. must not inject doc.uuid).
  *
  * Identity:
- * - extUuid is stored in column `uuid` (stable UUIDv5 for (ifName + scope + extId)).
+ * - extUuid is stored in column `uuid` (stable UUIDv5 for (ifUuid + idScope + extId)).
  * - extVersion is stored in column `version` (UUIDv7).
  * - Consecutive dedupe uses nonce = md5(doc::text) computed from the stored payload.
  *
@@ -100,7 +100,7 @@ final class UpstreamChangelog extends Base
     }
 
     /*
-     * $raw = $upstream->appendIfChanged($doc, $extId, $ifName, $meta, $sat, stream: 'acord.packset');
+     * $raw = $upstream->appendIfChanged($doc, $extId, $ifUuid, $meta, $sat, stream: 'acord.packset');
      */
 
     /**
@@ -108,13 +108,13 @@ final class UpstreamChangelog extends Base
      *
      * Terminology:
      * - $stream: upstream entity/table name (semantic provenance meaning in this class).
-     * - $uuidScope: OPTIONAL identity-only discriminator used ONLY to namespace extUuid.
-     *     Default behavior: if $uuidScope is empty, $stream is used.
+     * - $idScope: OPTIONAL identity-only discriminator used ONLY to namespace extUuid.
+     *     Default behavior: if $idScope is empty, $stream is used.
      *
-     * Why $uuidScope exists:
-     * - Sometimes you want extUuid to be stable for something *more specific* than (ifName, stream, extId),
+     * Why $idScope exists:
+     * - Sometimes you want extUuid to be stable for something *more specific* than (ifUuid, stream, extId),
      *   e.g. different upstream endpoints feeding the same stream while sharing extId ranges.
-     * - In that case, you keep semantic provenance "stream" intact, and provide a separate uuidScope.
+     * - In that case, you keep semantic provenance "stream" intact, and provide a separate idScope.
      *
      * IMPORTANT:
      * - extUuid stability should normally include the upstream stream (entity/table) to avoid collisions
@@ -123,31 +123,45 @@ final class UpstreamChangelog extends Base
      * NOTE:
      * - This method preserves upstream payload AS RECEIVED. It does NOT inject any identity fields into doc.
      *
+     * Identity formula (conceptual):
+     * - extUuid = uuidv5(ns = uuidNamespaceKey + ":" + ifUuid + ":" + idScope, name = extId)
+     *
      * @return array{uuid:string,version:string,iat:string,nonce:string}
      */
     public function appendIfChanged(
         array|object $doc,
         string $extId,
-        string $ifName,
+        string $ifUuid,
         array|object $meta = [],
         ?string $sat = null,
         ?string $stream = null,
-        ?string $uuidScope = null
+        ?string $idScope = null
     ): array {
+        $ifUuid = trim($ifUuid);
+        if ($ifUuid === '') {
+            throw new \InvalidArgumentException('appendIfChanged() requires non-empty $ifUuid.');
+        }
+
         $stream = $stream !== null ? trim($stream) : '';
-        $uuidScope = $uuidScope !== null ? trim($uuidScope) : '';
+        $idScope = $idScope !== null ? trim($idScope) : '';
 
         // Identity-only scope defaults to semantic stream.
-        $idScope = $uuidScope !== '' ? $uuidScope : $stream;
+        $idScopeEff = $idScope !== '' ? $idScope : $stream;
 
-        // Fold identity discriminator (idScope) into the namespace key used for stable UUIDv5.
-        $sourceKey = $idScope !== '' ? ($ifName . ':' . $idScope) : $ifName;
+        // Fold identity discriminator (ifUuid + idScope) into the namespace key used for stable UUIDv5.
+        $sourceKey = $idScopeEff !== '' ? ($ifUuid . ':' . $idScopeEff) : $ifUuid;
 
         // Stable extUuid (stored in column `uuid`); upstream payload remains unchanged.
         $uuid = UuidTools::stableForSource($this->uuidNamespaceKey, $sourceKey, $extId);
 
         // Encode payload/meta without forcing doc.uuid
         [$d, $m] = $this->normalize($doc, $meta, null);
+
+        // Store identity/provenance hints in META (never in doc)
+        $m['ifUuid'] = $ifUuid;
+        if ($stream !== '') { $m['stream'] = $stream; }
+        if ($idScopeEff !== '') { $m['idScope'] = $idScopeEff; }
+
         $docJson  = json_encode($d, $this->jsonFlags);
         $metaJson = json_encode($m, $this->jsonFlags);
 
@@ -228,16 +242,18 @@ final class UpstreamChangelog extends Base
      * - 'stream' ALWAYS means the UPSTREAM entity/table name (e.g. "acord.packset").
      *
      * Upstream identity vs provenance:
-     * - extUuid is stable per (ifName, discriminator, extId), where discriminator defaults to 'stream'.
-     * - If you need extUuid to fork beyond (ifName, stream, extId), provide 'upstreamUuidScope' (identity-only).
+     * - extUuid is stable per (ifUuid, idScope, extId), where idScope defaults to 'stream'.
+     * - If you need extUuid to fork beyond (ifUuid, stream, extId), provide 'idScope' (identity-only).
      *   Provenance still records 'stream' as the upstream entity/table name.
      *
      * Options (explicit routing; docChangelog/docSnapshot required):
      * - ifUuid (string, REQUIRED): UUID of the interface configuration (identity discriminator for internal uuids)
+     * - ifLabel (string, optional): human label of the interface (purely for readability)
      * - ifInstance (string, optional): remote-defined instance/tenant id
      *
      * - stream (string, REQUIRED): upstream entity/table name (provenance)
-     * - upstreamUuidScope (string, optional): identity-only discriminator for extUuid namespacing (default: stream)
+     * - idScope (string, optional): identity-only discriminator for extUuid namespacing (default: stream)
+     *   (Alias supported: upstreamUuidScope)
      *
      * - schemaVer (int, optional): internal schema version (default 1)
      * - transformName (string, optional): transformer identifier (default: class name / "callable")
@@ -260,7 +276,6 @@ final class UpstreamChangelog extends Base
     public function transformToInternal(
         array|object $rawDoc,
         string $extId,
-        string $ifName,
         UpstreamTransformer|callable $transform,
         array|object $rawMeta = [],
         ?string $sat = null,
@@ -273,6 +288,7 @@ final class UpstreamChangelog extends Base
             throw new \InvalidArgumentException('transformToInternal() requires $options["ifUuid"].');
         }
 
+        $ifLabel = trim((string)($options['ifLabel'] ?? ''));
         $ifInstance = trim((string)($options['ifInstance'] ?? ''));
 
         $stream = trim((string)($options['stream'] ?? ''));
@@ -280,9 +296,13 @@ final class UpstreamChangelog extends Base
             throw new \InvalidArgumentException('transformToInternal() requires $options["stream"] (upstream entity/table name).');
         }
 
-        $upstreamUuidScope = trim((string)($options['upstreamUuidScope'] ?? ''));
-        if ($upstreamUuidScope === '') {
-            $upstreamUuidScope = $stream;
+        // Identity-only discriminator: prefer idScope, allow legacy name upstreamUuidScope as alias.
+        $idScope = trim((string)($options['idScope'] ?? ''));
+        if ($idScope === '') {
+            $idScope = trim((string)($options['upstreamUuidScope'] ?? ''));
+        }
+        if ($idScope === '') {
+            $idScope = $stream;
         }
 
         $gitSha        = getenv('GIT_SHA');
@@ -300,11 +320,11 @@ final class UpstreamChangelog extends Base
             $rawRow = $this->appendIfChanged(
                 $rawDoc,
                 $extId,
-                $ifName,
+                $ifUuid,
                 $rawMeta,
                 $sat,
                 stream: $stream,
-                uuidScope: $upstreamUuidScope
+                idScope: $idScope
             );
 
             $extUuid    = (string)$rawRow['uuid'];
@@ -353,8 +373,8 @@ final class UpstreamChangelog extends Base
                 $baked = $this->bakeInternalMeta(
                     $itMeta,
                     schemaVer: $schemaVer,
-                    ifName: $ifName,
                     ifUuid: $ifUuid,
+                    ifLabel: $ifLabel,
                     ifInstance: $ifInstance,
                     transformName: $transformName,
                     transformVer: $transformVer,
@@ -413,8 +433,8 @@ final class UpstreamChangelog extends Base
     private function bakeInternalMeta(
         array $meta,
         int $schemaVer,
-        string $ifName,
         string $ifUuid,
+        string $ifLabel,
         string $ifInstance,
         string $transformName,
         string $transformVer,
@@ -429,8 +449,10 @@ final class UpstreamChangelog extends Base
             $meta['schemaVer'] = $schemaVer;
         }
 
-        $meta['ifName'] = $ifName;
         $meta['ifUuid'] = $ifUuid;
+        if ($ifLabel !== '') {
+            $meta['ifLabel'] = $ifLabel;
+        }
         if ($ifInstance !== '') {
             $meta['ifInstance'] = $ifInstance;
         }
@@ -497,5 +519,4 @@ final class UpstreamChangelog extends Base
 
         return [true, $t];
     }
-
 }
